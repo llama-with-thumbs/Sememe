@@ -274,6 +274,27 @@ def library_list():
     return jsonify([dict(r) for r in rows])
 
 
+@app.route("/library/note", methods=["POST"])
+def create_note():
+    """Create a text-only note (no audio)."""
+    file_id = str(uuid.uuid4())
+    base_name = f"Note {datetime.now().strftime('%Y-%m-%d')}"
+    conn = get_db()
+    # Avoid duplicate names
+    existing = conn.execute(
+        "SELECT original_name FROM files WHERE original_name LIKE ?", (base_name + "%",)
+    ).fetchall()
+    if existing:
+        base_name = f"{base_name} ({len(existing) + 1})"
+    conn.execute(
+        "INSERT INTO files (id, original_name, mp3_path, duration, transcription, created_at) VALUES (?, ?, NULL, 0, '', ?)",
+        (file_id, base_name, datetime.now().isoformat())
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"file_id": file_id, "original_name": base_name})
+
+
 @app.route("/library/<file_id>")
 def library_get(file_id):
     conn = get_db()
@@ -395,12 +416,19 @@ def build_topic_map():
     file_entries = []
     file_lookup = {}
     for r in rows:
-        text = r["transcription_en"] or r["transcription"]
-        if not text:
+        text_en = r["transcription_en"] or ""
+        text_orig = r["transcription"] or ""
+        if not text_en and not text_orig:
             continue
-        truncated = text[:MAX_CHARS_PER_FILE]
-        if len(text) > MAX_CHARS_PER_FILE:
-            truncated += "..."
+        # Include both languages so GPT can return keywords for each
+        if text_en and text_orig and text_en.strip() != text_orig.strip():
+            half = MAX_CHARS_PER_FILE // 2
+            truncated = f"[English]:\n{text_en[:half]}\n[Original]:\n{text_orig[:half]}"
+        else:
+            text = text_en or text_orig
+            truncated = text[:MAX_CHARS_PER_FILE]
+            if len(text) > MAX_CHARS_PER_FILE:
+                truncated += "..."
         file_entries.append(
             f'[File ID: {r["id"]}, Name: "{r["original_name"]}"]\n{truncated}'
         )
@@ -414,7 +442,13 @@ def build_topic_map():
         chars_per = MAX_TOTAL_CHARS // len(rows)
         file_entries = []
         for r in rows:
-            text = (r["transcription_en"] or r["transcription"] or "")[:chars_per]
+            text_en = r["transcription_en"] or ""
+            text_orig = r["transcription"] or ""
+            if text_en and text_orig and text_en.strip() != text_orig.strip():
+                half = chars_per // 2
+                text = f"[English]:\n{text_en[:half]}\n[Original]:\n{text_orig[:half]}"
+            else:
+                text = (text_en or text_orig)[:chars_per]
             file_entries.append(f'[File ID: {r["id"]}, Name: "{r["original_name"]}"]\n{text}')
         combined_text = "\n\n---\n\n".join(file_entries)
 
@@ -429,11 +463,14 @@ def build_topic_map():
                     "You are analyzing multiple speech transcriptions from the same person's library. "
                     "Identify recurring TOPICS across these files and find connections between them.\n\n"
                     "Return a JSON object with exactly this structure:\n"
-                    '{"topics": [{"id": 1, "label": "Topic Name", "file_ids": ["uuid1", "uuid2"]}], '
+                    '{"topics": [{"id": 1, "label": "Topic Name", "file_ids": ["uuid1", "uuid2"], "keywords": ["keyword1", "phrase two"]}], '
                     '"edges": [{"from": 1, "to": 2, "label": "shared characteristic"}]}\n\n'
                     "Rules:\n"
                     "- Topics should be high-level themes, projects, or subjects that appear across files\n"
                     "- Each topic MUST list the file_ids (UUIDs) of files where that topic appears\n"
+                    "- Each topic MUST include a 'keywords' array of 3-8 short phrases (1-3 words each) that appear VERBATIM in the source transcriptions\n"
+                    "- If both [English] and [Original] texts are provided, include keywords from BOTH languages so the topic can be found in either version\n"
+                    "- Keywords should be specific words or phrases from the text that identify where the topic is discussed\n"
                     "- Only use file IDs that appear in the input (the UUID after 'File ID:')\n"
                     "- Extract 5-20 topics depending on content volume\n"
                     "- Topic labels: concise but descriptive (2-6 words)\n"

@@ -47,6 +47,8 @@
             --graph-edge-highlight: #666;
             --graph-edge-label: #777;
             --graph-edge-stroke: #fafafa;
+            --highlight-bg: #fff3b0;
+            --highlight-text: #2a2a2a;
         }
 
         [data-theme="dark"] {
@@ -89,6 +91,8 @@
             --graph-edge-highlight: #8a9abe;
             --graph-edge-label: #7080a0;
             --graph-edge-stroke: #111a30;
+            --highlight-bg: #5a4a10;
+            --highlight-text: #f0e0a0;
         }
 
         [data-theme="midnight"] {
@@ -131,6 +135,8 @@
             --graph-edge-highlight: #58a6ff;
             --graph-edge-label: #6e7681;
             --graph-edge-stroke: #0d1117;
+            --highlight-bg: #3d3200;
+            --highlight-text: #ffd700;
         }
 
         [data-theme="warm"] {
@@ -173,6 +179,8 @@
             --graph-edge-highlight: #8a7e6f;
             --graph-edge-label: #8a7e6f;
             --graph-edge-stroke: #fefae0;
+            --highlight-bg: #f5e6c8;
+            --highlight-text: #3e3529;
         }
 
         [data-theme="nord"] {
@@ -215,6 +223,8 @@
             --graph-edge-highlight: #88c0d0;
             --graph-edge-label: #7b88a0;
             --graph-edge-stroke: #2e3440;
+            --highlight-bg: #4c4a3a;
+            --highlight-text: #ebcb8b;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -284,12 +294,11 @@
         #progress-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 2px; transition: width 0.3s; }
         #progress-info { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
 
-        /* Workspace */
-        #workspace { flex: 1; display: none; overflow: hidden; min-height: 0; }
-        #workspace-inner { display: flex; height: 100%; min-height: 0; flex: 1; width: 100%; }
+        /* Content area: text panel + graph panel side by side */
+        #content-area { flex: 1; display: flex; overflow: hidden; min-height: 0; }
 
-        /* Text panel */
-        #text-panel { flex: 1; display: flex; flex-direction: column; border-right: 1px solid var(--border); min-width: 280px; min-height: 0; }
+        /* Text panel (hidden until a file is opened) */
+        #text-panel { flex: 1; display: none; flex-direction: column; border-right: 1px solid var(--border); min-width: 280px; min-height: 0; }
         #text-panel-header {
             padding: 0 16px; border-bottom: 1px solid var(--border); display: flex;
             justify-content: space-between; align-items: center; height: 40px; background: var(--bg-panel);
@@ -379,8 +388,12 @@
         .tooltip-files li { padding: 4px 0; border-top: 1px solid var(--border); }
         .tooltip-files a { color: var(--accent); text-decoration: none; cursor: pointer; font-size: 0.8rem; }
         .tooltip-files a:hover { text-decoration: underline; }
+        mark.topic-highlight {
+            background: var(--highlight-bg); color: var(--highlight-text);
+            border-radius: 2px; padding: 0 2px;
+        }
 
-        #empty-state { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-faint); font-size: 1rem; }
+
         #error { padding: 10px 20px; background: var(--error-bg); color: var(--error-text); font-size: 0.85rem; display: none; border-bottom: 1px solid var(--error-border); }
     </style>
 </head>
@@ -394,6 +407,7 @@
                 <div class="formats">m4a mp3 wav ogg flac webm mp4 wma</div>
             </div>
             <input type="file" id="file-input" accept=".m4a,.mp3,.wav,.ogg,.flac,.webm,.mp4,.wma">
+            <button id="new-note-btn" class="btn btn-subtle" style="width:100%; margin-top:8px;">+ New Note</button>
         </div>
         <div id="theme-bar">
             <label for="theme-select">Theme</label>
@@ -421,44 +435,42 @@
             <div id="progress-info"><span id="progress-percent"></span><span id="progress-elapsed"></span></div>
         </div>
 
-        <div id="workspace">
-            <div id="workspace-inner">
-                <!-- Text panel with tabs -->
-                <div id="text-panel">
-                    <div id="text-panel-header">
-                        <div class="tabs">
-                            <button class="tab active" data-tab="original">Original</button>
-                            <button class="tab" data-tab="english">English</button>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:6px;">
-                            <span id="save-status"></span>
-                            <button id="transcribe-btn" class="btn btn-primary" style="display:none">Transcribe</button>
-                            <button id="cleanup-btn" class="btn btn-subtle" title="Remove extra blank lines">Clean up</button>
-                            <button id="build-topicmap-btn" class="btn btn-primary">Build Map</button>
-                            <button id="save-btn" class="btn btn-save" style="display:none">Save</button>
-                        </div>
+        <div id="content-area">
+            <!-- Text panel (shown when a file is open) -->
+            <div id="text-panel">
+                <div id="text-panel-header">
+                    <div class="tabs">
+                        <button class="tab active" data-tab="original">Original</button>
+                        <button class="tab" data-tab="english">English</button>
                     </div>
-                    <div class="text-area-wrap">
-                        <div id="text-original" class="text-editor" contenteditable="true" data-placeholder="Original transcription..."></div>
-                        <div id="text-english" class="text-editor hidden" contenteditable="true" data-placeholder="English translation..."></div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span id="save-status"></span>
+                        <button id="transcribe-btn" class="btn btn-primary" style="display:none">Transcribe</button>
+                        <button id="cleanup-btn" class="btn btn-subtle" title="Remove extra blank lines">Clean up</button>
+                        <button id="save-btn" class="btn btn-save" style="display:none">Save</button>
                     </div>
                 </div>
-                <!-- Graph panel -->
-                <div id="graph-panel">
-                    <div id="graph-panel-header">
-                        <h2>Topic Map</h2>
+                <div class="text-area-wrap">
+                    <div id="text-original" class="text-editor" contenteditable="true" data-placeholder="Original transcription..."></div>
+                    <div id="text-english" class="text-editor hidden" contenteditable="true" data-placeholder="English translation..."></div>
+                </div>
+            </div>
+            <!-- Graph panel (always visible) -->
+            <div id="graph-panel">
+                <div id="graph-panel-header">
+                    <h2>Topic Map</h2>
+                    <div style="display:flex; align-items:center; gap:8px;">
                         <span id="topicmap-stale-label" style="display:none; font-size:0.72rem; color:#c88a20; font-weight:500;">out of date</span>
+                        <button id="build-topicmap-btn" class="btn btn-primary">Build Map</button>
                     </div>
-                    <div id="topicmap-wrap">
-                        <div id="topicmap-placeholder">Click "Build Map" to analyze all files</div>
-                        <div id="topicmap-container"></div>
-                        <div id="topicmap-tooltip"></div>
-                    </div>
+                </div>
+                <div id="topicmap-wrap">
+                    <div id="topicmap-placeholder">Click "Build Map" to analyze all files</div>
+                    <div id="topicmap-container"></div>
+                    <div id="topicmap-tooltip"></div>
                 </div>
             </div>
         </div>
-
-        <div id="empty-state">Select a file from the library or upload a new one</div>
     </div>
 
     <script>
@@ -470,7 +482,7 @@
         const progressFill = document.getElementById("progress-fill");
         const progressPercent = document.getElementById("progress-percent");
         const progressElapsed = document.getElementById("progress-elapsed");
-        const workspace = document.getElementById("workspace");
+        const textPanel = document.getElementById("text-panel");
         const textOriginal = document.getElementById("text-original");
         const textEnglish = document.getElementById("text-english");
         const saveBtn = document.getElementById("save-btn");
@@ -480,7 +492,7 @@
         const audioPlayer = document.getElementById("audio-player");
         const fileTitle = document.getElementById("file-title");
         const errorDiv = document.getElementById("error");
-        const emptyState = document.getElementById("empty-state");
+
         const tabs = document.querySelectorAll("[data-tab]");
         const topicmapWrap = document.getElementById("topicmap-wrap");
         const topicmapContainer = document.getElementById("topicmap-container");
@@ -491,6 +503,9 @@
         let saveTimeout = null;
         let activeTab = "original";
         let topicmapNetwork = null;
+        let topicmapNodes = null;
+        let topicmapEdges = null;
+        let hoveredEdgeIds = [];
         let lastTopicMapData = null;
         let topicMapStale = false;
 
@@ -557,6 +572,17 @@
             }
         });
 
+        // --- New Note ---
+        document.getElementById("new-note-btn").addEventListener("click", async () => {
+            try {
+                const res = await fetch("/library/note", { method: "POST" });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "Failed");
+                await loadLibrary();
+                openFile(data.file_id);
+            } catch (e) { showError(e.message); }
+        });
+
         // --- Drag & Drop ---
         dropZone.addEventListener("click", () => fileInput.click());
         dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("drag-over"); });
@@ -586,6 +612,7 @@
 
         async function saveText() {
             if (!currentFileId) return;
+            removeHighlightsFromEditor();
             clearTimeout(saveTimeout);
             saveStatus.textContent = "Saving...";
             saveBtn.style.display = "none";
@@ -610,7 +637,6 @@
         // --- Upload (just save to library) ---
         async function uploadFile(file) {
             resetUI();
-            emptyState.style.display = "none";
             progressBarEl.style.display = "block";
             progressMessage.textContent = `Uploading ${file.name}...`;
 
@@ -637,7 +663,7 @@
             progressBarEl.style.display = "block";
             progressMessage.textContent = "Starting transcription...";
             progressFill.style.width = "0%";
-            workspace.style.display = "flex";
+            textPanel.style.display = "flex";
 
             const startTime = Date.now();
             const elapsedTimer = setInterval(() => {
@@ -738,9 +764,7 @@
                 if (!result.exists) return;
                 lastTopicMapData = result.data;
                 topicMapStale = result.stale;
-                if (workspace.style.display === "flex") {
-                    renderTopicMap(lastTopicMapData);
-                }
+                renderTopicMap(lastTopicMapData);
                 updateTopicMapButton();
             } catch (e) {
                 console.warn("Failed to load cached topic map:", e);
@@ -809,7 +833,7 @@
             const maxFiles = Math.max(...data.topics.map(t => (t.file_ids || []).length), 1);
             const MIN_SIZE = 20, MAX_SIZE = 50;
 
-            const nodes = new vis.DataSet(data.topics.map(t => {
+            topicmapNodes = new vis.DataSet(data.topics.map(t => {
                 const fileCount = (t.file_ids || []).length;
                 const size = MIN_SIZE + ((fileCount - 1) / Math.max(maxFiles - 1, 1)) * (MAX_SIZE - MIN_SIZE);
                 return {
@@ -818,21 +842,23 @@
                     color: {
                         background: getVar("--graph-node"), border: getVar("--graph-node-border"),
                         highlight: { background: getVar("--graph-node-highlight"), border: getVar("--graph-node-border") },
+                        hover: { background: getVar("--graph-node-highlight"), border: getVar("--graph-node-border") },
                     },
                     font: { color: getVar("--text-primary"), size: 12 + Math.min(fileCount, 6), face: "inherit" },
                     borderWidth: 2,
                     file_ids: t.file_ids || [],
+                    keywords: t.keywords || [],
                 };
             }));
 
-            const edges = new vis.DataSet((data.edges || []).map(e => ({
+            topicmapEdges = new vis.DataSet((data.edges || []).map(e => ({
                 from: e.from, to: e.to, label: e.label || "",
                 color: { color: getVar("--graph-edge"), highlight: getVar("--graph-edge-highlight") },
                 font: { color: getVar("--graph-edge-label"), size: 10, strokeWidth: 2, strokeColor: getVar("--graph-edge-stroke") },
                 smooth: { type: "continuous" },
             })));
 
-            topicmapNetwork = new vis.Network(topicmapContainer, { nodes, edges }, {
+            topicmapNetwork = new vis.Network(topicmapContainer, { nodes: topicmapNodes, edges: topicmapEdges }, {
                 physics: {
                     solver: "forceAtlas2Based",
                     forceAtlas2Based: { gravitationalConstant: -80, springLength: 150, springConstant: 0.04, damping: 0.5 },
@@ -847,7 +873,7 @@
                 if (params.nodes.length === 0) { topicmapTooltip.style.display = "none"; return; }
 
                 const nodeId = params.nodes[0];
-                const nodeData = nodes.get(nodeId);
+                const nodeData = topicmapNodes.get(nodeId);
                 const fileIds = nodeData.file_ids || [];
 
                 const fileListHtml = fileIds.map(fid => {
@@ -880,6 +906,96 @@
             });
 
             topicmapNetwork.on("deselectNode", () => { topicmapTooltip.style.display = "none"; });
+
+            // --- Hover: highlight node edges + text passages ---
+            topicmapNetwork.on("hoverNode", function (params) {
+                const nodeId = params.node;
+                const nodeData = topicmapNodes.get(nodeId);
+
+                // Highlight connected edges
+                hoveredEdgeIds = topicmapNetwork.getConnectedEdges(nodeId);
+                hoveredEdgeIds.forEach(eid => {
+                    topicmapEdges.update({
+                        id: eid,
+                        color: { color: getVar("--graph-edge-highlight"), highlight: getVar("--graph-edge-highlight") },
+                        width: 2.5,
+                    });
+                });
+
+                // Highlight keywords in the open note (fall back to label if no keywords)
+                const kw = (nodeData.keywords && nodeData.keywords.length > 0) ? nodeData.keywords : [nodeData.label];
+                highlightKeywordsInEditor(kw, nodeData.file_ids || []);
+            });
+
+            topicmapNetwork.on("blurNode", function () {
+                // Restore edges
+                hoveredEdgeIds.forEach(eid => {
+                    topicmapEdges.update({
+                        id: eid,
+                        color: { color: getVar("--graph-edge"), highlight: getVar("--graph-edge-highlight") },
+                        width: 1,
+                    });
+                });
+                hoveredEdgeIds = [];
+
+                // Remove text highlights
+                removeHighlightsFromEditor();
+            });
+        }
+
+        // --- Text highlight helpers ---
+        function highlightKeywordsInEditor(keywords, fileIds) {
+            if (!currentFileId || !fileIds.includes(currentFileId)) return;
+            if (!keywords || keywords.length === 0) return;
+
+            const escaped = keywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+            const regex = new RegExp('(' + escaped.join('|') + ')', 'gi');
+
+            // Highlight both editors (Original + English)
+            [textOriginal, textEnglish].forEach(editor => {
+                const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null, false);
+                const textNodes = [];
+                while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+                for (const textNode of textNodes) {
+                    const text = textNode.textContent;
+                    if (!regex.test(text)) continue;
+                    regex.lastIndex = 0;
+
+                    const fragment = document.createDocumentFragment();
+                    let lastIndex = 0;
+                    let match;
+                    while ((match = regex.exec(text)) !== null) {
+                        if (match.index > lastIndex) {
+                            fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+                        }
+                        const mark = document.createElement('mark');
+                        mark.className = 'topic-highlight';
+                        mark.textContent = match[0];
+                        fragment.appendChild(mark);
+                        lastIndex = regex.lastIndex;
+                    }
+                    if (lastIndex < text.length) {
+                        fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+                    }
+                    textNode.parentNode.replaceChild(fragment, textNode);
+                }
+            });
+
+            // Scroll to first highlight in the visible editor
+            const visibleEditor = activeTab === "original" ? textOriginal : textEnglish;
+            const firstMark = visibleEditor.querySelector('.topic-highlight');
+            if (firstMark) firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function removeHighlightsFromEditor() {
+            [textOriginal, textEnglish].forEach(editor => {
+                const marks = editor.querySelectorAll('mark.topic-highlight');
+                marks.forEach(mark => {
+                    mark.parentNode.replaceChild(document.createTextNode(mark.textContent), mark);
+                });
+                if (marks.length > 0) editor.normalize();
+            });
         }
 
         // --- Library ---
@@ -896,7 +1012,7 @@
             for (const f of files) {
                 const li = document.createElement("li");
                 li.className = "lib-item" + (f.id === currentFileId ? " active" : "");
-                const dur = formatDuration(f.duration);
+                const dur = f.duration ? formatDuration(f.duration) : "Note";
                 const date = new Date(f.created_at).toLocaleDateString();
                 li.innerHTML = `
                     <div class="lib-item-name">${escapeHtml(f.original_name)}</div>
@@ -913,7 +1029,7 @@
                     e.stopPropagation();
                     if (confirm(`Delete "${f.original_name}"?`)) {
                         await fetch(`/library/${f.id}`, { method: "DELETE" });
-                        if (currentFileId === f.id) { resetUI(); emptyState.style.display = "flex"; }
+                        if (currentFileId === f.id) { resetUI(); }
                         loadLibrary();
                     }
                 });
@@ -923,7 +1039,6 @@
 
         async function openFile(fileId) {
             resetUI();
-            emptyState.style.display = "none";
 
             const res = await fetch(`/library/${fileId}`);
             const data = await res.json();
@@ -933,18 +1048,17 @@
             setEditorText(textEnglish, data.transcription_en || "");
 
             fileTitle.textContent = data.original_name;
-            audioPlayer.src = `/library/${fileId}/audio`;
-            audioBar.style.display = "flex";
-            workspace.style.display = "flex";
+            textPanel.style.display = "flex";
 
-            // Show transcribe button if not yet transcribed
-            if (!data.transcription) {
-                transcribeBtn.style.display = "inline-block";
+            // Audio bar only for files with audio
+            if (data.mp3_path) {
+                audioPlayer.src = `/library/${fileId}/audio`;
+                audioBar.style.display = "flex";
             }
 
-            // Restore topic map if cached
-            if (lastTopicMapData) {
-                renderTopicMap(lastTopicMapData);
+            // Show transcribe button only for audio files without transcription
+            if (!data.transcription && data.mp3_path) {
+                transcribeBtn.style.display = "inline-block";
             }
 
             // Highlight in sidebar
@@ -955,8 +1069,9 @@
         }
 
         function resetUI() {
+            removeHighlightsFromEditor();
             errorDiv.style.display = "none";
-            workspace.style.display = "none";
+            textPanel.style.display = "none";
             audioBar.style.display = "none";
             progressBarEl.style.display = "none";
             progressFill.style.width = "0%";
