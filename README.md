@@ -32,6 +32,13 @@ Sememes is a personal knowledge tool that records voice notes, transcribes with 
 - **Bulk actions** — Multi-select notes (long-press or checkbox); bulk star, move, tag, or trash
 - **Saved searches** — Save search queries with filters for quick recall; manage in sidebar
 
+### Capture Workflows
+- **Quick capture** — Lightning button or Ctrl+N opens an inline capture bar; Enter saves to Inbox notebook instantly
+- **Inbox notebook** — Dedicated "Inbox" notebook auto-created for quick captures and triage
+- **Drag-and-drop into editor** — Drop images or files directly onto the note editor; images embed inline, files attach as links
+- **Clipboard paste cleanup** — Pasting from Word, web pages, or other apps strips messy formatting (Office classes, inline styles, empty elements) while preserving bold/italic/links
+- **Image paste** — Paste screenshots or copied images directly into the editor (Ctrl+V); auto-uploaded as attachments
+
 ### Audio & Transcription
 - **Audio upload** — Supports m4a, mp3, wav, ogg, flac, webm, mp4, wma
 - **Whisper transcription** — Chunked transcription with real-time SSE progress streaming

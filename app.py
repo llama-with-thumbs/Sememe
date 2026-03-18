@@ -82,11 +82,16 @@ def init_db():
             created_at TEXT
         )
     """)
-    # Ensure default notebook exists and assign orphan notes
+    # Ensure default notebook and Inbox exist, assign orphan notes
     DEFAULT_NOTEBOOK = "My Notebook"
+    INBOX_NOTEBOOK = "Inbox"
     conn.execute(
         "INSERT OR IGNORE INTO notebooks (name, created_at) VALUES (?, ?)",
         (DEFAULT_NOTEBOOK, datetime.now().isoformat())
+    )
+    conn.execute(
+        "INSERT OR IGNORE INTO notebooks (name, created_at) VALUES (?, ?)",
+        (INBOX_NOTEBOOK, datetime.now().isoformat())
     )
     conn.execute(
         "UPDATE files SET notebook = ? WHERE notebook IS NULL OR notebook = ''",
@@ -488,6 +493,27 @@ def create_note():
     conn.commit()
     conn.close()
     return jsonify({"file_id": file_id, "original_name": base_name})
+
+
+@app.route("/library/quick-capture", methods=["POST"])
+def quick_capture():
+    """Quick capture: create a note in Inbox with optional content."""
+    data = request.get_json() or {}
+    content = data.get("content", "")
+    title = data.get("title", "").strip()
+    file_id = str(uuid.uuid4())
+    now = datetime.now()
+    if not title:
+        title = f"Quick Note {now.strftime('%Y-%m-%d %H:%M')}"
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO files (id, original_name, mp3_path, duration, transcription, created_at, notebook) "
+        "VALUES (?, ?, NULL, 0, ?, ?, 'Inbox')",
+        (file_id, title, content, now.isoformat())
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"file_id": file_id, "original_name": title})
 
 
 @app.route("/library/<file_id>")

@@ -368,6 +368,40 @@
         .saved-search-item:hover .ss-delete { display: inline; }
         .saved-search-item .ss-delete:hover { color: var(--delete-hover-text); }
 
+        /* --- Quick Capture --- */
+        #quick-capture-bar {
+            display: none; padding: 8px 14px; border-bottom: 1px solid var(--border);
+            background: var(--bg-surface);
+        }
+        #quick-capture-bar.visible { display: block; }
+        #quick-capture-input {
+            width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+            background: var(--bg-panel); color: var(--text-primary); font-size: 0.85rem;
+            outline: none; font-family: inherit; resize: none; min-height: 36px; max-height: 120px;
+        }
+        #quick-capture-input:focus { border-color: var(--accent); }
+        #quick-capture-input::placeholder { color: var(--text-placeholder); }
+        #quick-capture-actions {
+            display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px;
+        }
+        #quick-capture-actions button {
+            padding: 4px 12px; border-radius: 4px; border: 1px solid var(--border);
+            cursor: pointer; font-size: 0.78rem; font-family: inherit;
+        }
+        #quick-capture-actions .qc-save {
+            background: var(--accent); color: #fff; border-color: var(--accent);
+        }
+        #quick-capture-actions .qc-cancel {
+            background: var(--bg-panel); color: var(--text-secondary);
+        }
+
+        /* --- Editor drop overlay --- */
+        .editor-drop-active {
+            outline: 2px dashed var(--accent) !important;
+            outline-offset: -4px;
+            background: var(--accent-bg) !important;
+        }
+
         /* --- Reset & Base --- */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -887,6 +921,7 @@
                 </div>
                 <div id="notes-actions">
                     <button id="new-note-btn" title="New Note">+ New</button>
+                    <button id="quick-capture-btn" title="Quick Capture to Inbox (Ctrl+N)">&#9889;</button>
                     <button id="import-enex-btn" title="Import Evernote (.enex)">Import</button>
                 </div>
             </div>
@@ -894,6 +929,13 @@
         <div id="search-bar" style="display:flex;gap:4px;align-items:center;padding:0 14px 10px">
             <input type="text" id="search-input" placeholder="Search notes..." style="flex:1">
             <button id="save-search-btn" title="Save this search" style="background:none;border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;padding:3px 6px;font-size:0.72rem;display:none">Save</button>
+        </div>
+        <div id="quick-capture-bar">
+            <textarea id="quick-capture-input" placeholder="Quick note... (Enter to save, Shift+Enter for newline)" rows="1"></textarea>
+            <div id="quick-capture-actions">
+                <button class="qc-cancel" id="qc-cancel-btn">Cancel</button>
+                <button class="qc-save" id="qc-save-btn">Capture to Inbox</button>
+            </div>
         </div>
         <div id="bulk-bar">
             <input type="checkbox" id="bulk-select-all" title="Select all">
@@ -2948,6 +2990,230 @@
             });
             loadSavedSearches();
         });
+
+        // --- Quick Capture ---
+        const quickCaptureBar = document.getElementById("quick-capture-bar");
+        const quickCaptureInput = document.getElementById("quick-capture-input");
+
+        document.getElementById("quick-capture-btn").addEventListener("click", () => {
+            quickCaptureBar.classList.toggle("visible");
+            if (quickCaptureBar.classList.contains("visible")) {
+                quickCaptureInput.focus();
+            }
+        });
+
+        document.getElementById("qc-cancel-btn").addEventListener("click", () => {
+            quickCaptureBar.classList.remove("visible");
+            quickCaptureInput.value = "";
+        });
+
+        document.getElementById("qc-save-btn").addEventListener("click", () => doQuickCapture());
+
+        quickCaptureInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                doQuickCapture();
+            }
+            if (e.key === "Escape") {
+                quickCaptureBar.classList.remove("visible");
+                quickCaptureInput.value = "";
+            }
+        });
+
+        // Auto-resize textarea
+        quickCaptureInput.addEventListener("input", () => {
+            quickCaptureInput.style.height = "auto";
+            quickCaptureInput.style.height = Math.min(quickCaptureInput.scrollHeight, 120) + "px";
+        });
+
+        async function doQuickCapture() {
+            const content = quickCaptureInput.value.trim();
+            if (!content) return;
+            try {
+                const res = await fetch("/library/quick-capture", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({content})
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "Failed");
+                quickCaptureBar.classList.remove("visible");
+                quickCaptureInput.value = "";
+                quickCaptureInput.style.height = "auto";
+                await loadNoteList();
+                await loadNotebooks();
+                openFile(data.file_id);
+            } catch (e) { showError(e.message); }
+        }
+
+        // Global Ctrl+N shortcut for quick capture
+        document.addEventListener("keydown", (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === "n") {
+                e.preventDefault();
+                quickCaptureBar.classList.add("visible");
+                quickCaptureInput.focus();
+            }
+        });
+
+        // --- Drag-and-Drop into Editor ---
+        [textEnglish, textOriginal].forEach(editor => {
+            editor.addEventListener("dragover", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                editor.classList.add("editor-drop-active");
+            });
+            editor.addEventListener("dragleave", (e) => {
+                e.stopPropagation();
+                editor.classList.remove("editor-drop-active");
+            });
+            editor.addEventListener("drop", async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                editor.classList.remove("editor-drop-active");
+                if (!currentFileId) { showError("Open or create a note first"); return; }
+
+                const files = e.dataTransfer.files;
+                if (files.length === 0) return;
+
+                for (const file of files) {
+                    try {
+                        const formData = new FormData();
+                        formData.append("file", file);
+                        const res = await fetch(`/library/${currentFileId}/attachments`, { method: "POST", body: formData });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.error || "Upload failed");
+
+                        if (data.is_image) {
+                            // Insert image inline
+                            const img = document.createElement("img");
+                            img.src = `/attachments/${data.id}`;
+                            img.alt = data.filename;
+                            img.style.maxWidth = "100%";
+                            img.style.borderRadius = "4px";
+                            img.style.margin = "8px 0";
+                            img.style.display = "block";
+                            insertNodeAtCursor(editor, img);
+                        } else {
+                            // Insert as a link
+                            const a = document.createElement("a");
+                            a.href = `/attachments/${data.id}`;
+                            a.textContent = data.filename;
+                            a.target = "_blank";
+                            a.style.display = "inline-block";
+                            a.style.padding = "2px 6px";
+                            a.style.background = "var(--accent-bg)";
+                            a.style.borderRadius = "4px";
+                            a.style.fontSize = "0.82rem";
+                            a.style.margin = "4px 2px";
+                            insertNodeAtCursor(editor, a);
+                        }
+                        loadAttachments();
+                    } catch (err) { showError(err.message); }
+                }
+            });
+        });
+
+        // --- Clipboard Paste Cleanup ---
+        [textEnglish, textOriginal].forEach(editor => {
+            editor.addEventListener("paste", (e) => {
+                const clipboardData = e.clipboardData;
+                if (!clipboardData) return;
+
+                // Handle pasted images
+                const items = clipboardData.items;
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.startsWith("image/")) {
+                        e.preventDefault();
+                        const blob = items[i].getAsFile();
+                        if (blob && currentFileId) {
+                            const formData = new FormData();
+                            formData.append("file", blob, `pasted-image-${Date.now()}.png`);
+                            fetch(`/library/${currentFileId}/attachments`, { method: "POST", body: formData })
+                                .then(r => r.json())
+                                .then(data => {
+                                    if (data.id) {
+                                        const img = document.createElement("img");
+                                        img.src = `/attachments/${data.id}`;
+                                        img.alt = data.filename;
+                                        img.style.maxWidth = "100%";
+                                        img.style.borderRadius = "4px";
+                                        img.style.margin = "8px 0";
+                                        img.style.display = "block";
+                                        insertNodeAtCursor(editor, img);
+                                        loadAttachments();
+                                    }
+                                }).catch(err => showError(err.message));
+                        }
+                        return;
+                    }
+                }
+
+                // Handle HTML paste — clean up messy formatting
+                const html = clipboardData.getData("text/html");
+                if (html) {
+                    e.preventDefault();
+                    const cleaned = cleanPastedHtml(html);
+                    document.execCommand("insertHTML", false, cleaned);
+                    return;
+                }
+
+                // Plain text paste — let browser handle it
+            });
+        });
+
+        function cleanPastedHtml(html) {
+            // Create a temporary container to parse
+            const temp = document.createElement("div");
+            temp.innerHTML = html;
+
+            // Remove scripts, styles, meta, link, comments
+            temp.querySelectorAll("script, style, meta, link, title, head, xml").forEach(el => el.remove());
+
+            // Remove Word/Office specific elements
+            temp.querySelectorAll("[class^='Mso'], [class^='mso']").forEach(el => {
+                // Keep content but remove Word class
+                el.removeAttribute("class");
+            });
+
+            // Clean all elements
+            temp.querySelectorAll("*").forEach(el => {
+                // Remove most inline styles (keep text-decoration for strikethrough)
+                const style = el.getAttribute("style") || "";
+                const keepStyles = [];
+                if (/text-decoration\s*:\s*line-through/i.test(style)) keepStyles.push("text-decoration:line-through");
+                if (/font-weight\s*:\s*(bold|[7-9]\d\d)/i.test(style)) keepStyles.push("font-weight:bold");
+                if (/font-style\s*:\s*italic/i.test(style)) keepStyles.push("font-style:italic");
+                if (keepStyles.length > 0) el.setAttribute("style", keepStyles.join(";"));
+                else el.removeAttribute("style");
+
+                // Remove unwanted attributes
+                const allowedAttrs = ["href", "src", "alt", "style", "type", "checked", "class"];
+                [...el.attributes].forEach(attr => {
+                    if (!allowedAttrs.includes(attr.name)) el.removeAttribute(attr.name);
+                });
+
+                // Remove empty spans
+                if (el.tagName === "SPAN" && !el.getAttribute("style") && !el.getAttribute("class")) {
+                    el.replaceWith(...el.childNodes);
+                }
+            });
+
+            // Remove empty paragraphs (common in Word paste)
+            temp.querySelectorAll("p, div").forEach(el => {
+                if (el.innerHTML.trim() === "" || el.innerHTML.trim() === "&nbsp;") {
+                    // Keep one <br> instead of removing completely
+                    if (el.previousElementSibling) el.remove();
+                }
+            });
+
+            // Collapse consecutive <br> tags
+            let result = temp.innerHTML;
+            result = result.replace(/(<br\s*\/?\s*>){3,}/gi, "<br><br>");
+            // Remove leading/trailing whitespace
+            result = result.trim();
+
+            return result;
+        }
 
         // --- Init ---
         loadNotebooks();
