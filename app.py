@@ -129,6 +129,18 @@ def init_db():
             updated_at TEXT
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS note_versions (
+            id TEXT PRIMARY KEY,
+            file_id TEXT,
+            title TEXT,
+            transcription TEXT,
+            transcription_en TEXT,
+            created_at TEXT,
+            source TEXT DEFAULT 'autosave',
+            FOREIGN KEY (file_id) REFERENCES files(id)
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -355,6 +367,9 @@ def library_list():
     sort_by = request.args.get("sort", "created_desc")
     view = request.args.get("view")  # "trash", "starred", "recent"
     tag_filter = request.args.get("tag")
+    search_field = request.args.get("field")  # "title", "content", or None (all)
+    date_from = request.args.get("date_from")  # ISO date string
+    date_to = request.args.get("date_to")  # ISO date string
 
     query = ("SELECT id, original_name, duration, created_at, updated_at, tags, notebook, starred, trashed_at, "
              "COALESCE(transcription_en, transcription, '') as raw_text, "
@@ -376,10 +391,24 @@ def library_list():
         conditions.append("tags LIKE ?")
         params.append(f'%"{tag_filter}"%')
 
+    if date_from:
+        conditions.append("created_at >= ?")
+        params.append(date_from)
+    if date_to:
+        conditions.append("created_at <= ?")
+        params.append(date_to + " 23:59:59")
+
     if search_q:
-        conditions.append("(original_name LIKE ? OR transcription LIKE ? OR transcription_en LIKE ?)")
         s = f"%{search_q}%"
-        params.extend([s, s, s])
+        if search_field == "title":
+            conditions.append("original_name LIKE ?")
+            params.append(s)
+        elif search_field == "content":
+            conditions.append("(transcription LIKE ? OR transcription_en LIKE ?)")
+            params.extend([s, s])
+        else:
+            conditions.append("(original_name LIKE ? OR transcription LIKE ? OR transcription_en LIKE ?)")
+            params.extend([s, s, s])
 
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
@@ -408,7 +437,23 @@ def library_list():
     for r in rows:
         d = dict(r)
         raw = d.pop("raw_text", "")
-        d["preview"] = re.sub(r'<[^>]+>', '', raw).strip()[:150]
+        plain = re.sub(r'<[^>]+>', '', raw).strip()
+        # Smart preview: show context around match when searching
+        if search_q and plain:
+            idx = plain.lower().find(search_q.lower())
+            if idx >= 0:
+                start = max(0, idx - 60)
+                end = min(len(plain), idx + len(search_q) + 90)
+                snippet = plain[start:end]
+                if start > 0:
+                    snippet = "..." + snippet
+                if end < len(plain):
+                    snippet = snippet + "..."
+                d["preview"] = snippet
+            else:
+                d["preview"] = plain[:150]
+        else:
+            d["preview"] = plain[:150]
         result.append(d)
     return jsonify(result)
 
@@ -532,14 +577,43 @@ def library_update_text(file_id):
     if not data:
         return jsonify({"error": "No data provided"}), 400
     conn = get_db()
+    # Conflict protection: check if note was modified since client last loaded it
+    expected_updated = data.get("expected_updated_at")
+    if expected_updated:
+        row = conn.execute("SELECT updated_at FROM files WHERE id = ?", (file_id,)).fetchone()
+        if row and row["updated_at"] and row["updated_at"] != expected_updated:
+            conn.close()
+            return jsonify({"error": "conflict", "server_updated_at": row["updated_at"]}), 409
+    # Save version snapshot before overwriting
+    old = conn.execute("SELECT original_name, transcription, transcription_en FROM files WHERE id = ?", (file_id,)).fetchone()
+    if old and (old["transcription"] or old["transcription_en"]):
+        # Only save version if content actually changed
+        old_text = old["transcription"] or ""
+        old_text_en = old["transcription_en"] or ""
+        new_text = data.get("text", old_text)
+        new_text_en = data.get("text_en", old_text_en)
+        if old_text != new_text or old_text_en != new_text_en:
+            conn.execute(
+                "INSERT INTO note_versions (id, file_id, title, transcription, transcription_en, created_at, source) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (str(uuid.uuid4()), file_id, old["original_name"], old_text, old_text_en,
+                 datetime.now().isoformat(), "autosave")
+            )
+            # Keep only last 50 versions per note
+            conn.execute(
+                "DELETE FROM note_versions WHERE file_id = ? AND id NOT IN "
+                "(SELECT id FROM note_versions WHERE file_id = ? ORDER BY created_at DESC LIMIT 50)",
+                (file_id, file_id)
+            )
     if "text" in data:
         conn.execute("UPDATE files SET transcription = ? WHERE id = ?", (data["text"], file_id))
     if "text_en" in data:
         conn.execute("UPDATE files SET transcription_en = ? WHERE id = ?", (data["text_en"], file_id))
-    conn.execute("UPDATE files SET updated_at = ? WHERE id = ?", (datetime.now().isoformat(), file_id))
+    now = datetime.now().isoformat()
+    conn.execute("UPDATE files SET updated_at = ? WHERE id = ?", (now, file_id))
     conn.commit()
     conn.close()
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "updated_at": now})
 
 
 @app.route("/library/<file_id>/rename", methods=["PUT"])
@@ -1227,6 +1301,249 @@ def import_enex():
     finally:
         if os.path.exists(filepath):
             os.remove(filepath)
+
+
+# --- Version History ---
+
+@app.route("/library/<file_id>/versions")
+def list_versions(file_id):
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, title, created_at, source, "
+        "length(COALESCE(transcription, '')) + length(COALESCE(transcription_en, '')) as size "
+        "FROM note_versions WHERE file_id = ? ORDER BY created_at DESC",
+        (file_id,)
+    ).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/library/<file_id>/versions/<version_id>")
+def get_version(file_id, version_id):
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM note_versions WHERE id = ? AND file_id = ?",
+        (version_id, file_id)
+    ).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "Version not found"}), 404
+    return jsonify(dict(row))
+
+
+@app.route("/library/<file_id>/versions/<version_id>/restore", methods=["POST"])
+def restore_version(file_id, version_id):
+    conn = get_db()
+    ver = conn.execute(
+        "SELECT * FROM note_versions WHERE id = ? AND file_id = ?",
+        (version_id, file_id)
+    ).fetchone()
+    if not ver:
+        conn.close()
+        return jsonify({"error": "Version not found"}), 404
+    # Save current state as a version before restoring
+    old = conn.execute("SELECT original_name, transcription, transcription_en FROM files WHERE id = ?", (file_id,)).fetchone()
+    if old:
+        conn.execute(
+            "INSERT INTO note_versions (id, file_id, title, transcription, transcription_en, created_at, source) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (str(uuid.uuid4()), file_id, old["original_name"],
+             old["transcription"] or "", old["transcription_en"] or "",
+             datetime.now().isoformat(), "before_restore")
+        )
+    # Restore
+    conn.execute(
+        "UPDATE files SET transcription = ?, transcription_en = ?, updated_at = ? WHERE id = ?",
+        (ver["transcription"], ver["transcription_en"], datetime.now().isoformat(), file_id)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
+# --- Export ---
+
+@app.route("/library/<file_id>/export/<fmt>")
+def export_note(file_id, fmt):
+    conn = get_db()
+    row = conn.execute("SELECT * FROM files WHERE id = ?", (file_id,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "Not found"}), 404
+    note = dict(row)
+    title = note["original_name"] or "Untitled"
+    safe_title = re.sub(r'[^\w\s-]', '', title).strip().replace(' ', '_')
+
+    if fmt == "md":
+        content = f"# {title}\n\n"
+        text_en = note.get("transcription_en") or ""
+        text_orig = note.get("transcription") or ""
+        if text_en:
+            plain = html_to_markdown(text_en)
+            content += plain + "\n"
+        if text_orig and text_orig != text_en:
+            content += "\n---\n\n## Original\n\n" + html_to_markdown(text_orig) + "\n"
+        if note.get("tags"):
+            try:
+                tags = json.loads(note["tags"])
+                if tags:
+                    content += "\n---\nTags: " + ", ".join(tags) + "\n"
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return Response(content, mimetype="text/markdown",
+                        headers={"Content-Disposition": f'attachment; filename="{safe_title}.md"'})
+
+    elif fmt == "html":
+        text_en = note.get("transcription_en") or ""
+        text_orig = note.get("transcription") or ""
+        html = f"<!DOCTYPE html><html><head><meta charset='utf-8'><title>{title}</title>"
+        html += "<style>body{font-family:sans-serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.6}"
+        html += "h1{border-bottom:2px solid #eee;padding-bottom:10px}</style></head><body>"
+        html += f"<h1>{title}</h1>"
+        if text_en:
+            html += text_en
+        if text_orig and text_orig != text_en:
+            html += "<hr><h2>Original</h2>" + text_orig
+        tags_str = ""
+        if note.get("tags"):
+            try:
+                tags = json.loads(note["tags"])
+                if tags:
+                    tags_str = "<hr><p><strong>Tags:</strong> " + ", ".join(tags) + "</p>"
+            except (json.JSONDecodeError, TypeError):
+                pass
+        html += tags_str
+        html += f"<hr><p><small>Created: {note['created_at']}"
+        if note.get("notebook"):
+            html += f" | Notebook: {note['notebook']}"
+        html += "</small></p></body></html>"
+        return Response(html, mimetype="text/html",
+                        headers={"Content-Disposition": f'attachment; filename="{safe_title}.html"'})
+
+    elif fmt == "json":
+        export = {
+            "id": note["id"],
+            "title": title,
+            "notebook": note.get("notebook"),
+            "tags": json.loads(note["tags"]) if note.get("tags") else [],
+            "created_at": note["created_at"],
+            "updated_at": note.get("updated_at"),
+            "transcription": note.get("transcription"),
+            "transcription_en": note.get("transcription_en"),
+            "duration": note.get("duration"),
+            "starred": bool(note.get("starred")),
+        }
+        return Response(json.dumps(export, indent=2, ensure_ascii=False), mimetype="application/json",
+                        headers={"Content-Disposition": f'attachment; filename="{safe_title}.json"'})
+
+    elif fmt == "enex":
+        from xml.sax.saxutils import escape as xml_escape
+        created = note["created_at"].replace("-", "").replace(":", "").replace("T", "T")[:15] + "Z"
+        text_en = note.get("transcription_en") or note.get("transcription") or ""
+        enex = '<?xml version="1.0" encoding="UTF-8"?>\n'
+        enex += '<!DOCTYPE en-export SYSTEM "http://xml.evernote.com/pub/evernote-export4.dtd">\n'
+        enex += '<en-export>\n<note>\n'
+        enex += f'  <title>{xml_escape(title)}</title>\n'
+        enex += f'  <content><![CDATA[<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'
+        enex += '<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">\n'
+        enex += f'<en-note>{text_en}</en-note>]]></content>\n'
+        enex += f'  <created>{created}</created>\n'
+        if note.get("tags"):
+            try:
+                tags = json.loads(note["tags"])
+                for t in tags:
+                    enex += f'  <tag>{xml_escape(t)}</tag>\n'
+            except (json.JSONDecodeError, TypeError):
+                pass
+        enex += '</note>\n</en-export>'
+        return Response(enex, mimetype="application/xml",
+                        headers={"Content-Disposition": f'attachment; filename="{safe_title}.enex"'})
+
+    return jsonify({"error": "Unsupported format. Use: md, html, json, enex"}), 400
+
+
+@app.route("/library/export-all/<fmt>")
+def export_all_notes(fmt):
+    """Export all non-trashed notes as a single file."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM files WHERE trashed_at IS NULL ORDER BY created_at DESC"
+    ).fetchall()
+    conn.close()
+
+    if fmt == "json":
+        notes = []
+        for r in rows:
+            note = dict(r)
+            notes.append({
+                "id": note["id"],
+                "title": note["original_name"],
+                "notebook": note.get("notebook"),
+                "tags": json.loads(note["tags"]) if note.get("tags") else [],
+                "created_at": note["created_at"],
+                "updated_at": note.get("updated_at"),
+                "transcription": note.get("transcription"),
+                "transcription_en": note.get("transcription_en"),
+                "duration": note.get("duration"),
+                "starred": bool(note.get("starred")),
+            })
+        return Response(json.dumps(notes, indent=2, ensure_ascii=False), mimetype="application/json",
+                        headers={"Content-Disposition": 'attachment; filename="sememes_export.json"'})
+
+    elif fmt == "enex":
+        from xml.sax.saxutils import escape as xml_escape
+        enex = '<?xml version="1.0" encoding="UTF-8"?>\n'
+        enex += '<!DOCTYPE en-export SYSTEM "http://xml.evernote.com/pub/evernote-export4.dtd">\n'
+        enex += '<en-export>\n'
+        for r in rows:
+            note = dict(r)
+            title = note["original_name"] or "Untitled"
+            created = note["created_at"].replace("-", "").replace(":", "").replace("T", "T")[:15] + "Z"
+            text = note.get("transcription_en") or note.get("transcription") or ""
+            enex += '<note>\n'
+            enex += f'  <title>{xml_escape(title)}</title>\n'
+            enex += f'  <content><![CDATA[<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'
+            enex += '<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">\n'
+            enex += f'<en-note>{text}</en-note>]]></content>\n'
+            enex += f'  <created>{created}</created>\n'
+            if note.get("tags"):
+                try:
+                    tags = json.loads(note["tags"])
+                    for t in tags:
+                        enex += f'  <tag>{xml_escape(t)}</tag>\n'
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            enex += '</note>\n'
+        enex += '</en-export>'
+        return Response(enex, mimetype="application/xml",
+                        headers={"Content-Disposition": 'attachment; filename="sememes_export.enex"'})
+
+    return jsonify({"error": "Bulk export supports: json, enex"}), 400
+
+
+def html_to_markdown(html_text):
+    """Simple HTML to Markdown converter for export."""
+    text = html_text
+    text = re.sub(r'<h1[^>]*>(.*?)</h1>', r'# \1\n', text, flags=re.DOTALL)
+    text = re.sub(r'<h2[^>]*>(.*?)</h2>', r'## \1\n', text, flags=re.DOTALL)
+    text = re.sub(r'<h3[^>]*>(.*?)</h3>', r'### \1\n', text, flags=re.DOTALL)
+    text = re.sub(r'<strong>(.*?)</strong>', r'**\1**', text, flags=re.DOTALL)
+    text = re.sub(r'<b>(.*?)</b>', r'**\1**', text, flags=re.DOTALL)
+    text = re.sub(r'<em>(.*?)</em>', r'*\1*', text, flags=re.DOTALL)
+    text = re.sub(r'<i>(.*?)</i>', r'*\1*', text, flags=re.DOTALL)
+    text = re.sub(r'<s>(.*?)</s>', r'~~\1~~', text, flags=re.DOTALL)
+    text = re.sub(r'<a\s+href="([^"]*)"[^>]*>(.*?)</a>', r'[\2](\1)', text, flags=re.DOTALL)
+    text = re.sub(r'<li[^>]*>(.*?)</li>', r'- \1\n', text, flags=re.DOTALL)
+    text = re.sub(r'<blockquote[^>]*>(.*?)</blockquote>', lambda m: '> ' + m.group(1).strip() + '\n', text, flags=re.DOTALL)
+    text = re.sub(r'<code>(.*?)</code>', r'`\1`', text, flags=re.DOTALL)
+    text = re.sub(r'<pre[^>]*>(.*?)</pre>', r'```\n\1\n```\n', text, flags=re.DOTALL)
+    text = re.sub(r'<br\s*/?>', '\n', text)
+    text = re.sub(r'<hr\s*/?>', '\n---\n', text)
+    text = re.sub(r'<p[^>]*>(.*?)</p>', r'\1\n\n', text, flags=re.DOTALL)
+    text = re.sub(r'<div[^>]*>(.*?)</div>', r'\1\n', text, flags=re.DOTALL)
+    text = re.sub(r'<[^>]+>', '', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
 
 
 # --- Helpers ---

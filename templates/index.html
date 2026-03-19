@@ -412,25 +412,101 @@
 
         /* --- Three Panel Layout --- */
         #notebooks-panel {
-            width: 200px; min-width: 200px; background: var(--nb-bg);
+            width: 200px; min-width: 0; background: var(--nb-bg);
             border-right: 1px solid var(--border); display: flex; flex-direction: column;
-            height: 100vh; overflow: hidden;
+            height: 100vh; overflow: hidden; position: relative; transition: width 0.2s, min-width 0.2s;
         }
+        #notebooks-panel.collapsed { width: 0 !important; min-width: 0 !important; border-right: none; }
         #notes-panel {
-            width: 300px; min-width: 260px; background: var(--bg-panel);
+            width: 300px; min-width: 0; background: var(--bg-panel);
             border-right: 1px solid var(--border); display: flex; flex-direction: column;
-            height: 100vh; overflow: hidden;
+            height: 100vh; overflow: hidden; position: relative; transition: width 0.2s, min-width 0.2s;
         }
+        #notes-panel.collapsed { width: 0 !important; min-width: 0 !important; border-right: none; }
+        .panel-collapsed-content { overflow: hidden; }
         #editor-panel {
             flex: 1; display: flex; flex-direction: column;
             height: 100vh; overflow: hidden; background: var(--bg-surface);
         }
         #topicmap-panel {
-            width: 380px; min-width: 300px; background: var(--bg-panel);
+            width: 380px; min-width: 0; background: var(--bg-panel);
             border-left: 1px solid var(--border); display: none; flex-direction: column;
-            height: 100vh; overflow: hidden;
+            height: 100vh; overflow: hidden; position: relative; transition: width 0.2s;
         }
         #topicmap-panel.visible { display: flex; }
+
+        /* Resize handles */
+        .resize-handle {
+            position: absolute; top: 0; right: -3px; width: 6px; height: 100%;
+            cursor: col-resize; z-index: 10; background: transparent;
+        }
+        .resize-handle:hover, .resize-handle.active { background: var(--accent); opacity: 0.4; }
+        .resize-handle-left {
+            position: absolute; top: 0; left: -3px; width: 6px; height: 100%;
+            cursor: col-resize; z-index: 10; background: transparent;
+        }
+        .resize-handle-left:hover, .resize-handle-left.active { background: var(--accent); opacity: 0.4; }
+
+        /* Sidebar collapse toggle buttons */
+        .sidebar-toggle {
+            position: absolute; top: 8px; right: -14px; width: 14px; height: 28px;
+            background: var(--bg-panel); border: 1px solid var(--border); border-left: none;
+            border-radius: 0 4px 4px 0; cursor: pointer; z-index: 11;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.6rem; color: var(--text-muted); opacity: 0;
+            transition: opacity 0.2s;
+        }
+        #notebooks-panel:hover .sidebar-toggle, .sidebar-toggle:hover { opacity: 1; }
+        #notebooks-panel.collapsed .sidebar-toggle { opacity: 1; right: -14px; }
+        .notes-panel-toggle {
+            position: absolute; top: 8px; left: -14px; width: 14px; height: 28px;
+            background: var(--bg-panel); border: 1px solid var(--border); border-right: none;
+            border-radius: 4px 0 0 4px; cursor: pointer; z-index: 11;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.6rem; color: var(--text-muted); opacity: 0;
+            transition: opacity 0.2s;
+        }
+        #editor-panel:hover .notes-panel-toggle, .notes-panel-toggle:hover { opacity: 1; }
+        #notes-panel.collapsed ~ #editor-panel .notes-panel-toggle { opacity: 1; }
+
+        /* Dense/compact note list mode */
+        .note-list-compact .note-card { padding: 6px 14px; }
+        .note-list-compact .note-card-preview { display: none; }
+        .note-list-compact .note-card-tags { display: none; }
+        .note-list-compact .note-card-title { font-size: 0.80rem; margin-bottom: 1px; }
+        .note-list-compact .note-card-meta { font-size: 0.64rem; }
+
+        /* Command palette */
+        #command-palette-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4); z-index: 2000; align-items: flex-start; justify-content: center;
+            padding-top: 15vh;
+        }
+        #command-palette-overlay.visible { display: flex; }
+        #command-palette {
+            width: 520px; max-width: 90vw; background: var(--bg-surface);
+            border: 1px solid var(--border); border-radius: 10px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.25); overflow: hidden;
+        }
+        #command-palette input {
+            width: 100%; padding: 14px 18px; border: none; border-bottom: 1px solid var(--border);
+            background: transparent; color: var(--text-primary); font-size: 0.95rem;
+            outline: none;
+        }
+        #command-palette-results {
+            max-height: 340px; overflow-y: auto; padding: 4px 0;
+        }
+        .cmd-item {
+            padding: 9px 18px; cursor: pointer; display: flex; align-items: center;
+            gap: 10px; font-size: 0.84rem; color: var(--text-secondary);
+        }
+        .cmd-item:hover, .cmd-item.active { background: var(--accent-bg); color: var(--accent); }
+        .cmd-item .cmd-shortcut {
+            margin-left: auto; font-size: 0.68rem; color: var(--text-faint);
+            background: var(--bg-panel); padding: 2px 6px; border-radius: 3px;
+            border: 1px solid var(--border); font-family: monospace;
+        }
+        .cmd-item .cmd-icon { width: 18px; text-align: center; font-size: 0.9rem; }
 
         /* --- Notebooks Panel --- */
         #nb-header {
@@ -834,6 +910,46 @@
             background: var(--bg-surface); color: var(--text-secondary); font-size: 0.72rem;
             cursor: pointer;
         }
+        /* Advanced search filters */
+        #search-filters {
+            display: none; padding: 0 14px 8px; flex-direction: column; gap: 5px;
+        }
+        #search-filters.visible { display: flex; }
+        #search-filters .sf-row {
+            display: flex; gap: 4px; align-items: center;
+        }
+        #search-filters select, #search-filters input[type="date"] {
+            padding: 3px 5px; border: 1px solid var(--border); border-radius: 4px;
+            background: var(--bg-surface); color: var(--text-secondary); font-size: 0.70rem;
+            flex: 1;
+        }
+        #search-filters label {
+            font-size: 0.68rem; color: var(--text-faint); white-space: nowrap; min-width: 32px;
+        }
+        #search-filter-toggle {
+            background: none; border: none; cursor: pointer; color: var(--text-muted);
+            font-size: 0.72rem; padding: 2px 6px; border-radius: 4px;
+        }
+        #search-filter-toggle:hover { background: var(--bg-surface-hover); }
+        #search-filter-toggle.active { color: var(--accent); }
+        .search-active-filters {
+            display: flex; flex-wrap: wrap; gap: 3px; padding: 0 14px 5px;
+        }
+        .sf-chip {
+            font-size: 0.64rem; padding: 1px 6px; border-radius: 8px;
+            background: var(--accent-bg); color: var(--accent); border: 1px solid var(--border);
+            display: flex; align-items: center; gap: 3px;
+        }
+        .sf-chip button {
+            background: none; border: none; color: var(--accent); cursor: pointer;
+            font-size: 0.7rem; padding: 0; line-height: 1;
+        }
+        mark.search-highlight {
+            background: #ffe066; color: #333; border-radius: 2px; padding: 0 1px;
+        }
+        @media (prefers-color-scheme: dark) {
+            mark.search-highlight { background: #665d20; color: #f0e68c; }
+        }
 
         /* Trash banner */
         .trash-banner {
@@ -846,6 +962,80 @@
             color: var(--error-text); cursor: pointer; font-size: 0.72rem; padding: 2px 8px;
         }
         .trash-banner button:hover { background: var(--error-text); color: #fff; }
+
+        /* Version history panel */
+        #version-panel {
+            display: none; position: fixed; right: 0; top: 0; bottom: 0; width: 340px;
+            background: var(--bg-primary); border-left: 1px solid var(--border);
+            z-index: 1000; flex-direction: column; box-shadow: -4px 0 12px rgba(0,0,0,0.15);
+        }
+        #version-panel.visible { display: flex; }
+        #version-panel .vp-header {
+            padding: 12px 14px; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.88rem; font-weight: 600; color: var(--text-heading);
+        }
+        #version-panel .vp-header button {
+            background: none; border: none; cursor: pointer; color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+        #version-list {
+            flex: 1; overflow-y: auto; padding: 8px 0;
+        }
+        .version-item {
+            padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--border-item);
+            transition: background 0.1s;
+        }
+        .version-item:hover { background: var(--bg-surface-hover); }
+        .version-item.active { background: var(--accent-bg); border-left: 3px solid var(--accent); }
+        .version-item .vi-date { font-size: 0.78rem; color: var(--text-heading); font-weight: 500; }
+        .version-item .vi-meta { font-size: 0.68rem; color: var(--text-faint); margin-top: 2px; }
+        .version-item .vi-source {
+            font-size: 0.62rem; padding: 1px 5px; border-radius: 4px;
+            background: var(--accent-bg); color: var(--accent); display: inline-block; margin-top: 3px;
+        }
+        #version-preview {
+            border-top: 1px solid var(--border); padding: 10px 14px; max-height: 200px;
+            overflow-y: auto; font-size: 0.76rem; color: var(--text-secondary); line-height: 1.5;
+        }
+        #version-actions {
+            padding: 10px 14px; border-top: 1px solid var(--border);
+            display: flex; gap: 8px; justify-content: flex-end;
+        }
+        #version-actions button {
+            padding: 5px 14px; border-radius: 4px; cursor: pointer; font-size: 0.76rem; border: 1px solid var(--border);
+        }
+        #version-restore-btn { background: var(--accent); color: #fff; border-color: var(--accent); }
+        #version-restore-btn:hover { opacity: 0.9; }
+
+        /* Export dropdown */
+        .export-dropdown {
+            position: relative; display: inline-block;
+        }
+        .export-menu {
+            display: none; position: absolute; top: 100%; right: 0; z-index: 100;
+            background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-width: 160px; padding: 4px 0;
+        }
+        .export-menu.visible { display: block; }
+        .export-menu button {
+            display: block; width: 100%; text-align: left; padding: 7px 14px; border: none;
+            background: none; cursor: pointer; font-size: 0.76rem; color: var(--text-secondary);
+        }
+        .export-menu button:hover { background: var(--bg-surface-hover); }
+        .export-menu hr { margin: 4px 0; border: none; border-top: 1px solid var(--border); }
+
+        /* Conflict banner */
+        #conflict-banner {
+            display: none; padding: 8px 14px; background: #fff3cd; color: #856404;
+            font-size: 0.78rem; align-items: center; gap: 8px;
+            border-bottom: 1px solid #ffc107;
+        }
+        #conflict-banner button {
+            padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 0.72rem;
+            border: 1px solid #856404; background: none; color: #856404;
+        }
+        #conflict-banner button:hover { background: #856404; color: #fff; }
 
         /* Note card restore button */
         .note-restore {
@@ -861,6 +1051,8 @@
 <body>
     <!-- Notebooks Panel -->
     <div id="notebooks-panel">
+        <div class="resize-handle" id="nb-resize"></div>
+        <button class="sidebar-toggle" id="nb-collapse-btn" title="Toggle sidebar (Ctrl+\)">&#9664;</button>
         <div id="nb-header">
             <h1>Sememes</h1>
         </div>
@@ -913,6 +1105,7 @@
 
     <!-- Notes List Panel -->
     <div id="notes-panel">
+        <div class="resize-handle" id="notes-resize"></div>
         <div id="notes-header">
             <div id="notes-header-row">
                 <div>
@@ -928,7 +1121,37 @@
         </div>
         <div id="search-bar" style="display:flex;gap:4px;align-items:center;padding:0 14px 10px">
             <input type="text" id="search-input" placeholder="Search notes..." style="flex:1">
+            <button id="search-filter-toggle" title="Advanced filters">&#9660;</button>
             <button id="save-search-btn" title="Save this search" style="background:none;border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;padding:3px 6px;font-size:0.72rem;display:none">Save</button>
+        </div>
+        <div id="search-active-filters" class="search-active-filters"></div>
+        <div id="search-filters">
+            <div class="sf-row">
+                <label>In</label>
+                <select id="sf-field">
+                    <option value="">All fields</option>
+                    <option value="title">Title only</option>
+                    <option value="content">Content only</option>
+                </select>
+            </div>
+            <div class="sf-row">
+                <label>Notebook</label>
+                <select id="sf-notebook">
+                    <option value="">Any notebook</option>
+                </select>
+            </div>
+            <div class="sf-row">
+                <label>Tag</label>
+                <select id="sf-tag">
+                    <option value="">Any tag</option>
+                </select>
+            </div>
+            <div class="sf-row">
+                <label>From</label>
+                <input type="date" id="sf-date-from">
+                <label>To</label>
+                <input type="date" id="sf-date-to">
+            </div>
         </div>
         <div id="quick-capture-bar">
             <textarea id="quick-capture-input" placeholder="Quick note... (Enter to save, Shift+Enter for newline)" rows="1"></textarea>
@@ -956,6 +1179,7 @@
                 <option value="title_asc">Title A-Z</option>
                 <option value="title_desc">Title Z-A</option>
             </select>
+            <button id="dense-toggle" title="Toggle compact view" style="background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--text-muted);padding:3px 6px;font-size:0.68rem">&#9776;</button>
         </div>
         <div id="trash-banner" class="trash-banner" style="display:none">
             <span>Trash</span>
@@ -972,6 +1196,7 @@
 
     <!-- Editor Panel -->
     <div id="editor-panel">
+        <button class="notes-panel-toggle" id="notes-collapse-btn" title="Toggle notes panel">&#9654;</button>
         <div id="error"></div>
 
         <!-- Empty state -->
@@ -1013,6 +1238,19 @@
                 <button class="toolbar-btn" id="cleanup-btn" title="Remove extra blank lines">Clean up</button>
                 <button class="toolbar-btn" id="duplicate-btn" title="Duplicate note">Duplicate</button>
                 <button class="toolbar-btn" id="star-btn" title="Star / Unstar">&#9734;</button>
+                <div class="export-dropdown">
+                    <button class="toolbar-btn" id="export-btn" title="Export note">Export</button>
+                    <div class="export-menu" id="export-menu">
+                        <button data-fmt="md">Markdown (.md)</button>
+                        <button data-fmt="html">HTML (.html)</button>
+                        <button data-fmt="json">JSON (.json)</button>
+                        <button data-fmt="enex">Evernote (.enex)</button>
+                        <hr>
+                        <button id="export-all-json">Export All (JSON)</button>
+                        <button id="export-all-enex">Export All (ENEX)</button>
+                    </div>
+                </div>
+                <button class="toolbar-btn" id="history-btn" title="Version history">History</button>
                 <div class="toolbar-spacer"></div>
                 <button class="toolbar-btn" id="topicmap-toggle" title="Toggle Topic Map">Topic Map</button>
                 <!-- Hidden file inputs for image/attachment upload -->
@@ -1021,6 +1259,11 @@
             </div>
 
             <!-- Note title -->
+            <div id="conflict-banner">
+                <span>This note was modified elsewhere. Your changes may overwrite the other version.</span>
+                <button id="conflict-reload-btn">Reload</button>
+                <button id="conflict-overwrite-btn">Overwrite</button>
+            </div>
             <div id="note-title-bar">
                 <input id="note-title" type="text" placeholder="Note title...">
             </div>
@@ -1087,6 +1330,7 @@
 
     <!-- Topic Map Panel (collapsible right) -->
     <div id="topicmap-panel">
+        <div class="resize-handle-left" id="tm-resize"></div>
         <div id="tm-header">
             <h2>Topic Map</h2>
             <button class="toolbar-btn" id="topicmap-close" title="Close">&times;</button>
@@ -1790,6 +2034,14 @@
         });
 
         // --- Note List ---
+        function highlightText(text, query) {
+            if (!query) return escapeHtml(text);
+            const escaped = escapeHtml(text);
+            const escapedQuery = escapeHtml(query);
+            const regex = new RegExp('(' + escapedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+            return escaped.replace(regex, '<mark class="search-highlight">$1</mark>');
+        }
+
         async function loadNoteList() {
             let url = "/library";
             const params = new URLSearchParams();
@@ -1801,7 +2053,21 @@
             }
             const q = searchInput.value.trim();
             if (q) params.set("q", q);
+            // Advanced search filters
+            const sfField = document.getElementById("sf-field").value;
+            const sfNotebook = document.getElementById("sf-notebook").value;
+            const sfTag = document.getElementById("sf-tag").value;
+            const sfDateFrom = document.getElementById("sf-date-from").value;
+            const sfDateTo = document.getElementById("sf-date-to").value;
+            if (sfField) params.set("field", sfField);
+            if (sfNotebook && !currentNotebook) params.set("notebook", sfNotebook);
+            if (sfTag && !currentTagFilter) params.set("tag", sfTag);
+            if (sfDateFrom) params.set("date_from", sfDateFrom);
+            if (sfDateTo) params.set("date_to", sfDateTo);
             if (params.toString()) url += "?" + params;
+
+            // Update active filter chips
+            updateSearchFilterChips(q, sfField, sfNotebook, sfTag, sfDateFrom, sfDateTo);
 
             const res = await fetch(url);
             const files = await res.json();
@@ -1835,15 +2101,18 @@
                 const starClass = f.starred ? "note-star starred" : "note-star";
                 const starIcon = f.starred ? "&#9733;" : "&#9734;";
 
+                const titleHtml = q ? highlightText(f.original_name, q) : escapeHtml(f.original_name);
+                const previewHtml = q ? highlightText(f.preview || "", q) : escapeHtml(f.preview || "");
+
                 li.innerHTML = `
                     <div style="display:flex;align-items:center;gap:4px">
                         <input type="checkbox" class="bulk-checkbox" data-bulk-id="${f.id}">
                         ${!isTrash ? '<button class="' + starClass + '" data-star-id="' + f.id + '" title="Star">' + starIcon + '</button>' : ''}
-                        <div class="note-card-title" style="flex:1">${escapeHtml(f.original_name)}</div>
+                        <div class="note-card-title" style="flex:1">${titleHtml}</div>
                     </div>
-                    <div class="note-card-preview">${escapeHtml(f.preview || "")}</div>
+                    <div class="note-card-preview">${previewHtml}</div>
                     <div class="note-card-meta">
-                        <span>${date} &middot; <span class="note-type">${typeLabel}</span></span>
+                        <span>${date} &middot; <span class="note-type">${typeLabel}</span>${f.notebook ? ' &middot; ' + escapeHtml(f.notebook) : ''}</span>
                         <span>
                             ${isTrash ? '<button class="note-restore" data-restore-id="' + f.id + '">Restore</button>' : ''}
                             <button class="note-delete" data-id="${f.id}" title="${isTrash ? 'Delete permanently' : 'Move to trash'}">&times;</button>
@@ -1930,6 +2199,68 @@
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => loadNoteList(), 300);
         });
+
+        // Advanced search filter toggle
+        const sfToggle = document.getElementById("search-filter-toggle");
+        const sfPanel = document.getElementById("search-filters");
+        sfToggle.addEventListener("click", () => {
+            const visible = sfPanel.classList.toggle("visible");
+            sfToggle.classList.toggle("active", visible);
+            sfToggle.innerHTML = visible ? "&#9650;" : "&#9660;";
+        });
+
+        // Populate filter dropdowns when panel opens
+        function populateSearchFilterDropdowns() {
+            const sfNotebook = document.getElementById("sf-notebook");
+            const sfTag = document.getElementById("sf-tag");
+            // Notebooks
+            const curNb = sfNotebook.value;
+            sfNotebook.innerHTML = '<option value="">Any notebook</option>';
+            allNotebooks.forEach(nb => {
+                const opt = document.createElement("option");
+                opt.value = nb.name; opt.textContent = nb.name;
+                sfNotebook.appendChild(opt);
+            });
+            sfNotebook.value = curNb;
+            // Tags
+            const curTag = sfTag.value;
+            sfTag.innerHTML = '<option value="">Any tag</option>';
+            allTags.forEach(t => {
+                const opt = document.createElement("option");
+                opt.value = t.name; opt.textContent = `${t.name} (${t.count})`;
+                sfTag.appendChild(opt);
+            });
+            sfTag.value = curTag;
+        }
+
+        // Re-populate when filter panel is opened
+        sfToggle.addEventListener("click", populateSearchFilterDropdowns);
+
+        // Trigger search when any filter changes
+        document.querySelectorAll("#search-filters select, #search-filters input").forEach(el => {
+            el.addEventListener("change", () => loadNoteList());
+        });
+
+        // Active filter chips
+        function updateSearchFilterChips(q, field, notebook, tag, dateFrom, dateTo) {
+            const container = document.getElementById("search-active-filters");
+            container.innerHTML = "";
+            const hasFilters = field || notebook || tag || dateFrom || dateTo;
+            if (!hasFilters && !q) return;
+            if (field) addChip(container, "In: " + (field === "title" ? "Title" : "Content"), () => { document.getElementById("sf-field").value = ""; loadNoteList(); });
+            if (notebook && !currentNotebook) addChip(container, "Notebook: " + notebook, () => { document.getElementById("sf-notebook").value = ""; loadNoteList(); });
+            if (tag && !currentTagFilter) addChip(container, "Tag: " + tag, () => { document.getElementById("sf-tag").value = ""; loadNoteList(); });
+            if (dateFrom) addChip(container, "From: " + dateFrom, () => { document.getElementById("sf-date-from").value = ""; loadNoteList(); });
+            if (dateTo) addChip(container, "To: " + dateTo, () => { document.getElementById("sf-date-to").value = ""; loadNoteList(); });
+        }
+
+        function addChip(container, label, onRemove) {
+            const chip = document.createElement("span");
+            chip.className = "sf-chip";
+            chip.innerHTML = escapeHtml(label) + ' <button>&times;</button>';
+            chip.querySelector("button").addEventListener("click", (e) => { e.stopPropagation(); onRemove(); });
+            container.appendChild(chip);
+        }
 
         // Sort
         sortSelect.addEventListener("change", () => loadNoteList());
@@ -2082,6 +2413,8 @@
         setupAutoSave(textEnglish);
         saveBtn.addEventListener("click", () => saveText());
 
+        let noteUpdatedAt = null; // track server's updated_at for conflict protection
+
         async function saveText() {
             if (!currentFileId) return;
             removeHighlightsFromEditor();
@@ -2090,19 +2423,27 @@
             saveBtn.style.display = "none";
             try {
                 const isSingle = singleLangLabel.style.display !== "none";
-                await fetch(`/library/${currentFileId}/text`, {
+                const payload = isSingle
+                    ? { text: getEditorHtml(textEnglish) }
+                    : { text: getEditorHtml(textOriginal), text_en: getEditorHtml(textEnglish) };
+                if (noteUpdatedAt) payload.expected_updated_at = noteUpdatedAt;
+                const res = await fetch(`/library/${currentFileId}/text`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(
-                        isSingle
-                            ? { text: getEditorHtml(textEnglish) }
-                            : { text: getEditorHtml(textOriginal), text_en: getEditorHtml(textEnglish) }
-                    ),
+                    body: JSON.stringify(payload),
                 });
+                if (res.status === 409) {
+                    // Conflict detected
+                    document.getElementById("conflict-banner").style.display = "flex";
+                    saveStatus.textContent = "Conflict";
+                    saveBtn.style.display = "inline-block";
+                    return;
+                }
+                const data = await res.json();
+                if (data.updated_at) noteUpdatedAt = data.updated_at;
                 saveStatus.textContent = "Saved";
                 setTimeout(() => { saveStatus.textContent = ""; }, 2000);
                 if (lastTopicMapData) { topicMapStale = true; updateTopicMapButton(); }
-                // Refresh note list to update preview
                 loadNoteList();
             } catch (e) {
                 saveStatus.textContent = "Save failed";
@@ -2124,6 +2465,117 @@
                 });
                 loadNoteList();
             }, 1000);
+        });
+
+        // --- Version History ---
+        const versionPanel = document.getElementById("version-panel");
+        const versionList = document.getElementById("version-list");
+        const versionPreview = document.getElementById("version-preview");
+        const versionActions = document.getElementById("version-actions");
+        let selectedVersionId = null;
+
+        document.getElementById("history-btn").addEventListener("click", () => {
+            if (!currentFileId) return;
+            versionPanel.classList.toggle("visible");
+            if (versionPanel.classList.contains("visible")) loadVersions();
+        });
+        document.getElementById("version-close-btn").addEventListener("click", () => {
+            versionPanel.classList.remove("visible");
+        });
+
+        async function loadVersions() {
+            if (!currentFileId) return;
+            versionList.innerHTML = '<div style="padding:14px;text-align:center;color:var(--text-faint);font-size:0.78rem">Loading...</div>';
+            versionPreview.innerHTML = "";
+            versionActions.style.display = "none";
+            selectedVersionId = null;
+            try {
+                const res = await fetch(`/library/${currentFileId}/versions`);
+                const versions = await res.json();
+                if (versions.length === 0) {
+                    versionList.innerHTML = '<div style="padding:14px;text-align:center;color:var(--text-faint);font-size:0.78rem">No previous versions</div>';
+                    return;
+                }
+                versionList.innerHTML = "";
+                versions.forEach(v => {
+                    const div = document.createElement("div");
+                    div.className = "version-item";
+                    const date = new Date(v.created_at);
+                    const sourceLabel = v.source === "before_restore" ? "pre-restore" : v.source;
+                    div.innerHTML = `
+                        <div class="vi-date">${date.toLocaleDateString()} ${date.toLocaleTimeString()}</div>
+                        <div class="vi-meta">${v.title || "Untitled"} &middot; ${Math.round((v.size || 0) / 1024)}KB</div>
+                        <span class="vi-source">${sourceLabel}</span>
+                    `;
+                    div.addEventListener("click", () => selectVersion(v.id, div));
+                    versionList.appendChild(div);
+                });
+            } catch (e) {
+                versionList.innerHTML = '<div style="padding:14px;color:var(--error-text);font-size:0.78rem">Failed to load versions</div>';
+            }
+        }
+
+        async function selectVersion(versionId, el) {
+            selectedVersionId = versionId;
+            versionList.querySelectorAll(".version-item").forEach(v => v.classList.remove("active"));
+            el.classList.add("active");
+            try {
+                const res = await fetch(`/library/${currentFileId}/versions/${versionId}`);
+                const ver = await res.json();
+                const text = ver.transcription_en || ver.transcription || "";
+                const plain = text.replace(/<[^>]+>/g, '').trim();
+                versionPreview.textContent = plain.substring(0, 500) + (plain.length > 500 ? "..." : "");
+                versionActions.style.display = "flex";
+            } catch (e) {
+                versionPreview.textContent = "Failed to load preview";
+            }
+        }
+
+        document.getElementById("version-restore-btn").addEventListener("click", async () => {
+            if (!selectedVersionId || !currentFileId) return;
+            if (!confirm("Restore this version? The current content will be saved as a version first.")) return;
+            try {
+                await fetch(`/library/${currentFileId}/versions/${selectedVersionId}/restore`, { method: "POST" });
+                versionPanel.classList.remove("visible");
+                openFile(currentFileId);
+            } catch (e) { showError("Failed to restore version"); }
+        });
+
+        // --- Export ---
+        const exportBtn = document.getElementById("export-btn");
+        const exportMenu = document.getElementById("export-menu");
+
+        exportBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            exportMenu.classList.toggle("visible");
+        });
+        document.addEventListener("click", () => exportMenu.classList.remove("visible"));
+        exportMenu.addEventListener("click", (e) => e.stopPropagation());
+
+        exportMenu.querySelectorAll("[data-fmt]").forEach(btn => {
+            btn.addEventListener("click", () => {
+                if (!currentFileId) return;
+                window.location.href = `/library/${currentFileId}/export/${btn.dataset.fmt}`;
+                exportMenu.classList.remove("visible");
+            });
+        });
+        document.getElementById("export-all-json").addEventListener("click", () => {
+            window.location.href = "/library/export-all/json";
+            exportMenu.classList.remove("visible");
+        });
+        document.getElementById("export-all-enex").addEventListener("click", () => {
+            window.location.href = "/library/export-all/enex";
+            exportMenu.classList.remove("visible");
+        });
+
+        // --- Conflict Resolution ---
+        document.getElementById("conflict-reload-btn").addEventListener("click", () => {
+            if (currentFileId) openFile(currentFileId);
+        });
+        document.getElementById("conflict-overwrite-btn").addEventListener("click", () => {
+            document.getElementById("conflict-banner").style.display = "none";
+            noteUpdatedAt = null; // clear expected to force overwrite
+            saveText();
         });
 
         // --- Transcribe ---
@@ -2207,6 +2659,8 @@
             const res = await fetch(`/library/${fileId}`);
             const data = await res.json();
             currentFileId = fileId;
+            noteUpdatedAt = data.updated_at || null;
+            document.getElementById("conflict-banner").style.display = "none";
 
             editorEmpty.style.display = "none";
             editorActive.classList.add("visible");
@@ -2317,6 +2771,9 @@
             tabs.forEach(t => t.classList.toggle("active", t.dataset.tab === "english"));
             textEnglish.classList.remove("hidden");
             textOriginal.classList.add("hidden");
+            noteUpdatedAt = null;
+            document.getElementById("conflict-banner").style.display = "none";
+            versionPanel.classList.remove("visible");
         }
 
         // --- Topic Map Toggle ---
@@ -2956,6 +3413,12 @@
                             currentNotebook = null;
                             currentTagFilter = null;
                         }
+                        // Restore advanced filters
+                        document.getElementById("sf-field").value = filters.field || "";
+                        document.getElementById("sf-notebook").value = filters.notebook || "";
+                        document.getElementById("sf-tag").value = filters.tag || "";
+                        document.getElementById("sf-date-from").value = filters.date_from || "";
+                        document.getElementById("sf-date-to").value = filters.date_to || "";
                         notesTitle.textContent = ss.name;
                         loadNoteList();
                     });
@@ -2983,6 +3446,15 @@
             const filters = {};
             if (currentNotebook) filters.notebook = currentNotebook;
             if (currentTagFilter) filters.tag = currentTagFilter;
+            const sfField = document.getElementById("sf-field").value;
+            const sfDateFrom = document.getElementById("sf-date-from").value;
+            const sfDateTo = document.getElementById("sf-date-to").value;
+            if (sfField) filters.field = sfField;
+            if (sfDateFrom) filters.date_from = sfDateFrom;
+            if (sfDateTo) filters.date_to = sfDateTo;
+            // Also save notebook/tag from filter dropdowns
+            if (!filters.notebook) { const nb = document.getElementById("sf-notebook").value; if (nb) filters.notebook = nb; }
+            if (!filters.tag) { const tg = document.getElementById("sf-tag").value; if (tg) filters.tag = tg; }
             await fetch("/saved-searches", {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
@@ -3215,6 +3687,207 @@
             return result;
         }
 
+        // --- Resizable Panels ---
+        function setupResize(handleId, panelId, direction) {
+            const handle = document.getElementById(handleId);
+            const panel = document.getElementById(panelId);
+            if (!handle || !panel) return;
+            let startX, startWidth;
+            handle.addEventListener("mousedown", (e) => {
+                e.preventDefault();
+                startX = e.clientX;
+                startWidth = panel.offsetWidth;
+                handle.classList.add("active");
+                document.body.style.cursor = "col-resize";
+                document.body.style.userSelect = "none";
+                const onMove = (e) => {
+                    const delta = direction === "right" ? e.clientX - startX : startX - e.clientX;
+                    const newWidth = Math.max(120, Math.min(600, startWidth + delta));
+                    panel.style.width = newWidth + "px";
+                };
+                const onUp = () => {
+                    handle.classList.remove("active");
+                    document.body.style.cursor = "";
+                    document.body.style.userSelect = "";
+                    document.removeEventListener("mousemove", onMove);
+                    document.removeEventListener("mouseup", onUp);
+                    localStorage.setItem("panel-" + panelId, panel.style.width);
+                };
+                document.addEventListener("mousemove", onMove);
+                document.addEventListener("mouseup", onUp);
+            });
+            // Restore saved width
+            const saved = localStorage.getItem("panel-" + panelId);
+            if (saved) panel.style.width = saved;
+        }
+        setupResize("nb-resize", "notebooks-panel", "right");
+        setupResize("notes-resize", "notes-panel", "right");
+        setupResize("tm-resize", "topicmap-panel", "left");
+
+        // --- Collapsible Sidebars ---
+        const nbCollapseBtn = document.getElementById("nb-collapse-btn");
+        const notesCollapseBtn = document.getElementById("notes-collapse-btn");
+
+        function toggleNotebooksPanel() {
+            const panel = document.getElementById("notebooks-panel");
+            const collapsed = panel.classList.toggle("collapsed");
+            nbCollapseBtn.innerHTML = collapsed ? "&#9654;" : "&#9664;";
+            localStorage.setItem("nb-collapsed", collapsed);
+        }
+        function toggleNotesPanel() {
+            const panel = document.getElementById("notes-panel");
+            const collapsed = panel.classList.toggle("collapsed");
+            notesCollapseBtn.innerHTML = collapsed ? "&#9664;" : "&#9654;";
+            localStorage.setItem("notes-collapsed", collapsed);
+        }
+        nbCollapseBtn.addEventListener("click", toggleNotebooksPanel);
+        notesCollapseBtn.addEventListener("click", toggleNotesPanel);
+
+        // Restore collapsed state
+        if (localStorage.getItem("nb-collapsed") === "true") {
+            document.getElementById("notebooks-panel").classList.add("collapsed");
+            nbCollapseBtn.innerHTML = "&#9654;";
+        }
+        if (localStorage.getItem("notes-collapsed") === "true") {
+            document.getElementById("notes-panel").classList.add("collapsed");
+            notesCollapseBtn.innerHTML = "&#9664;";
+        }
+
+        // --- Dense/Compact Note List ---
+        const denseToggle = document.getElementById("dense-toggle");
+        const noteListEl = document.getElementById("note-list");
+        function setDenseMode(on) {
+            noteListEl.classList.toggle("note-list-compact", on);
+            denseToggle.style.color = on ? "var(--accent)" : "var(--text-muted)";
+            localStorage.setItem("dense-mode", on);
+        }
+        denseToggle.addEventListener("click", () => {
+            setDenseMode(!noteListEl.classList.contains("note-list-compact"));
+        });
+        if (localStorage.getItem("dense-mode") === "true") setDenseMode(true);
+
+        // --- Command Palette ---
+        const cmdOverlay = document.getElementById("command-palette-overlay");
+        const cmdInput = document.getElementById("cmd-input");
+        const cmdResults = document.getElementById("command-palette-results");
+        let cmdActiveIndex = 0;
+
+        const commands = [
+            { name: "New Note", icon: "+", shortcut: "", action: () => document.getElementById("new-note-btn").click() },
+            { name: "Quick Capture", icon: "\u26A1", shortcut: "Ctrl+N", action: () => document.getElementById("quick-capture-btn").click() },
+            { name: "Toggle Sidebar", icon: "\u2630", shortcut: "Ctrl+\\", action: toggleNotebooksPanel },
+            { name: "Toggle Notes Panel", icon: "\u2261", shortcut: "Ctrl+Shift+\\", action: toggleNotesPanel },
+            { name: "Compact View", icon: "\u2261", shortcut: "", action: () => denseToggle.click() },
+            { name: "All Notes", icon: "\uD83D\uDCCB", shortcut: "", action: () => { selectView(null, null); } },
+            { name: "Recent Notes", icon: "\uD83D\uDD52", shortcut: "", action: () => { selectView("recent", null); } },
+            { name: "Starred Notes", icon: "\u2605", shortcut: "", action: () => { selectView("starred", null); } },
+            { name: "Trash", icon: "\uD83D\uDDD1", shortcut: "", action: () => { selectView("trash", null); } },
+            { name: "Export as Markdown", icon: "\u2B07", shortcut: "", action: () => { if (currentFileId) window.location.href = `/library/${currentFileId}/export/md`; } },
+            { name: "Export as HTML", icon: "\u2B07", shortcut: "", action: () => { if (currentFileId) window.location.href = `/library/${currentFileId}/export/html`; } },
+            { name: "Export as JSON", icon: "\u2B07", shortcut: "", action: () => { if (currentFileId) window.location.href = `/library/${currentFileId}/export/json`; } },
+            { name: "Export All (JSON)", icon: "\uD83D\uDCE6", shortcut: "", action: () => { window.location.href = "/library/export-all/json"; } },
+            { name: "Export All (ENEX)", icon: "\uD83D\uDCE6", shortcut: "", action: () => { window.location.href = "/library/export-all/enex"; } },
+            { name: "Version History", icon: "\uD83D\uDD53", shortcut: "", action: () => { if (currentFileId) document.getElementById("history-btn").click(); } },
+            { name: "Topic Map", icon: "\uD83D\uDDFA", shortcut: "", action: () => document.getElementById("topicmap-toggle").click() },
+            { name: "Bold", icon: "B", shortcut: "Ctrl+B", action: () => document.execCommand("bold") },
+            { name: "Italic", icon: "I", shortcut: "Ctrl+I", action: () => document.execCommand("italic") },
+            { name: "Underline", icon: "U", shortcut: "Ctrl+U", action: () => document.execCommand("underline") },
+            { name: "Insert Link", icon: "\uD83D\uDD17", shortcut: "Ctrl+K", action: () => showLinkDialog() },
+            { name: "Search Notes", icon: "\uD83D\uDD0D", shortcut: "", action: () => { searchInput.focus(); } },
+        ];
+
+        // Dynamic commands for notebooks
+        function getFilteredCommands(query) {
+            let cmds = [...commands];
+            // Add notebook commands dynamically
+            allNotebooks.forEach(nb => {
+                cmds.push({ name: "Go to: " + nb.name, icon: "\uD83D\uDCD3", shortcut: "", action: () => selectNotebook(nb.name) });
+            });
+            if (!query) return cmds;
+            const q = query.toLowerCase();
+            return cmds.filter(c => c.name.toLowerCase().includes(q));
+        }
+
+        function renderCommands(query) {
+            const filtered = getFilteredCommands(query);
+            cmdActiveIndex = 0;
+            cmdResults.innerHTML = "";
+            filtered.forEach((cmd, i) => {
+                const div = document.createElement("div");
+                div.className = "cmd-item" + (i === 0 ? " active" : "");
+                div.innerHTML = `<span class="cmd-icon">${cmd.icon}</span>${escapeHtml(cmd.name)}${cmd.shortcut ? '<span class="cmd-shortcut">' + cmd.shortcut + '</span>' : ''}`;
+                div.addEventListener("click", () => { executeCommand(cmd); });
+                div.addEventListener("mouseenter", () => {
+                    cmdResults.querySelectorAll(".cmd-item").forEach(c => c.classList.remove("active"));
+                    div.classList.add("active");
+                    cmdActiveIndex = i;
+                });
+                cmdResults.appendChild(div);
+            });
+        }
+
+        function executeCommand(cmd) {
+            closePalette();
+            cmd.action();
+        }
+
+        function openPalette() {
+            cmdOverlay.classList.add("visible");
+            cmdInput.value = "";
+            renderCommands("");
+            cmdInput.focus();
+        }
+
+        function closePalette() {
+            cmdOverlay.classList.remove("visible");
+            cmdInput.value = "";
+        }
+
+        cmdInput.addEventListener("input", () => renderCommands(cmdInput.value.trim()));
+
+        cmdInput.addEventListener("keydown", (e) => {
+            const items = cmdResults.querySelectorAll(".cmd-item");
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                cmdActiveIndex = Math.min(cmdActiveIndex + 1, items.length - 1);
+                items.forEach((it, i) => it.classList.toggle("active", i === cmdActiveIndex));
+                items[cmdActiveIndex]?.scrollIntoView({ block: "nearest" });
+            } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                cmdActiveIndex = Math.max(cmdActiveIndex - 1, 0);
+                items.forEach((it, i) => it.classList.toggle("active", i === cmdActiveIndex));
+                items[cmdActiveIndex]?.scrollIntoView({ block: "nearest" });
+            } else if (e.key === "Enter") {
+                e.preventDefault();
+                const filtered = getFilteredCommands(cmdInput.value.trim());
+                if (filtered[cmdActiveIndex]) executeCommand(filtered[cmdActiveIndex]);
+            } else if (e.key === "Escape") {
+                closePalette();
+            }
+        });
+
+        cmdOverlay.addEventListener("click", (e) => {
+            if (e.target === cmdOverlay) closePalette();
+        });
+
+        // Global keyboard shortcuts for UX polish
+        document.addEventListener("keydown", (e) => {
+            const ctrl = e.ctrlKey || e.metaKey;
+            // Ctrl+P or Ctrl+Shift+P: Command Palette
+            if (ctrl && e.key.toLowerCase() === "p") {
+                e.preventDefault();
+                openPalette();
+                return;
+            }
+            // Ctrl+\: Toggle notebooks sidebar
+            if (ctrl && e.key === "\\") {
+                e.preventDefault();
+                if (e.shiftKey) toggleNotesPanel();
+                else toggleNotebooksPanel();
+                return;
+            }
+        });
+
         // --- Init ---
         loadNotebooks();
         loadNoteList();
@@ -3222,5 +3895,25 @@
         loadTags();
         loadSavedSearches();
     </script>
+    <!-- Command Palette -->
+    <div id="command-palette-overlay">
+        <div id="command-palette">
+            <input type="text" id="cmd-input" placeholder="Type a command..." autocomplete="off">
+            <div id="command-palette-results"></div>
+        </div>
+    </div>
+
+    <!-- Version History Panel -->
+    <div id="version-panel">
+        <div class="vp-header">
+            <span>Version History</span>
+            <button id="version-close-btn">&times;</button>
+        </div>
+        <div id="version-list"></div>
+        <div id="version-preview"></div>
+        <div id="version-actions" style="display:none">
+            <button id="version-restore-btn">Restore this version</button>
+        </div>
+    </div>
 </body>
 </html>
