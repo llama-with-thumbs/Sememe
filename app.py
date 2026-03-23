@@ -462,7 +462,7 @@ def library_list():
 def list_notebooks():
     conn = get_db()
     nb_rows = conn.execute(
-        "SELECT n.name, n.stack, COALESCE(c.cnt, 0) as note_count FROM notebooks n "
+        "SELECT n.name, n.stack, n.created_at, COALESCE(c.cnt, 0) as note_count FROM notebooks n "
         "LEFT JOIN (SELECT notebook, COUNT(*) as cnt FROM files "
         "WHERE notebook IS NOT NULL AND notebook != '' AND trashed_at IS NULL "
         "GROUP BY notebook) c ON c.notebook = n.name "
@@ -1247,15 +1247,20 @@ def import_enex():
         return jsonify({"error": "No file uploaded"}), 400
 
     file = request.files["file"]
-    if not file.filename.lower().endswith(".enex"):
+    original_filename = file.filename or "import.enex"
+    if not original_filename.lower().endswith(".enex"):
         return jsonify({"error": "Please upload an .enex file (Evernote export)"}), 400
 
-    filepath = os.path.join(UPLOAD_FOLDER, file.filename)
+    # Use a safe temp filename for saving, but keep original for notebook name
+    safe_name = str(uuid.uuid4()) + ".enex"
+    filepath = os.path.join(UPLOAD_FOLDER, safe_name)
     file.save(filepath)
 
     try:
-        tree = ET.parse(filepath)
-        root = tree.getroot()
+        # Parse with explicit UTF-8 to handle Cyrillic and other non-ASCII metadata
+        with open(filepath, "r", encoding="utf-8") as f:
+            xml_content = f.read()
+        root = ET.fromstring(xml_content)
 
         notes = root.findall("note")
         if not notes:
@@ -1263,6 +1268,11 @@ def import_enex():
 
         conn = get_db()
         imported = []
+        created_notebooks = set()
+
+        # Notebook override from form data, or derive from filename
+        user_notebook = request.form.get("notebook", "").strip()
+        filename_notebook = user_notebook or os.path.splitext(original_filename)[0].strip()
 
         for note in notes:
             file_id = str(uuid.uuid4())
@@ -1279,12 +1289,45 @@ def import_enex():
             tag_elements = note.findall("tag")
             tags = json.dumps([t.text for t in tag_elements if t.text]) if tag_elements else None
 
+            # Extract notebook: try <notebook> element, then note-attributes/notebook,
+            # then use the .enex filename (Evernote names exports after the source notebook)
+            notebook_name = (
+                note.findtext("notebook")
+                or note.findtext("note-attributes/notebook")
+                or filename_notebook
+                or DEFAULT_NOTEBOOK
+            ).strip()
+            if notebook_name and notebook_name not in created_notebooks:
+                conn.execute(
+                    "INSERT OR IGNORE INTO notebooks (name, created_at) VALUES (?, ?)",
+                    (notebook_name, datetime.now().isoformat())
+                )
+                created_notebooks.add(notebook_name)
+
+            # Extract additional note-attributes metadata
+            attrs = note.find("note-attributes")
+            source_url = attrs.findtext("source-url") if attrs is not None else None
+            author = attrs.findtext("author") if attrs is not None else None
+            latitude = attrs.findtext("latitude") if attrs is not None else None
+            longitude = attrs.findtext("longitude") if attrs is not None else None
+
+            # Append source metadata to content if present
+            meta_html = ""
+            if source_url:
+                meta_html += f'<p><small>Source: <a href="{source_url}">{source_url}</a></small></p>'
+            if author:
+                meta_html += f'<p><small>Author: {author}</small></p>'
+            if latitude and longitude:
+                meta_html += f'<p><small>Location: {latitude}, {longitude}</small></p>'
+            if meta_html:
+                html_content = html_content + '<hr>' + meta_html
+
             conn.execute(
                 "INSERT INTO files (id, original_name, mp3_path, duration, transcription, created_at, updated_at, tags, notebook) "
                 "VALUES (?, ?, NULL, 0, ?, ?, ?, ?, ?)",
-                (file_id, title, html_content, created, updated, tags, DEFAULT_NOTEBOOK)
+                (file_id, title, html_content, created, updated, tags, notebook_name)
             )
-            imported.append({"file_id": file_id, "title": title})
+            imported.append({"file_id": file_id, "title": title, "notebook": notebook_name})
 
         conn.commit()
         conn.close()
