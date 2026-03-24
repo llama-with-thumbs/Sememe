@@ -1168,6 +1168,45 @@
         }
         .note-card:hover .note-restore { display: inline; }
 
+        /* In-note search bar */
+        #note-search-bar {
+            display: none; padding: 6px 16px; background: var(--bg-panel);
+            border-bottom: 1px solid var(--border); align-items: center; gap: 6px;
+        }
+        #note-search-bar.visible { display: flex; }
+        #note-search-bar input {
+            padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px;
+            background: var(--bg-surface); color: var(--text-primary); font-size: 0.82rem;
+            outline: none; width: 200px;
+        }
+        #note-search-bar input:focus { border-color: var(--accent); }
+        #note-search-bar .ns-count {
+            font-size: 0.72rem; color: var(--text-faint); min-width: 50px; text-align: center;
+        }
+        #note-search-bar button {
+            background: none; border: 1px solid var(--border); border-radius: 4px;
+            color: var(--text-muted); cursor: pointer; padding: 3px 8px; font-size: 0.78rem;
+        }
+        #note-search-bar button:hover { border-color: var(--accent); color: var(--accent); }
+        #note-search-bar .ns-close {
+            background: none; border: none; font-size: 1rem; padding: 0 4px;
+        }
+        #note-search-bar .ns-replace-group {
+            display: none; align-items: center; gap: 4px; margin-left: 8px;
+            border-left: 1px solid var(--border); padding-left: 8px;
+        }
+        #note-search-bar .ns-replace-group.visible { display: flex; }
+        .ns-highlight {
+            background: #ffe066; color: #333; border-radius: 1px;
+        }
+        .ns-highlight-active {
+            background: #ff9632; color: #fff;
+        }
+        @media (prefers-color-scheme: dark) {
+            .ns-highlight { background: #665d20; color: #f0e68c; }
+            .ns-highlight-active { background: #cc6600; color: #fff; }
+        }
+
         /* Navigation arrows */
         #nb-nav-arrows {
             display: flex; justify-content: flex-end; gap: 8px;
@@ -1489,6 +1528,21 @@
                     <button id="transcribe-btn" class="btn btn-primary" style="display:none">Transcribe</button>
                     <button id="save-btn" class="btn btn-save" style="display:none">Save</button>
                 </div>
+            </div>
+
+            <!-- In-note search -->
+            <div id="note-search-bar">
+                <input type="text" id="ns-find-input" placeholder="Find..." autocomplete="off">
+                <span class="ns-count" id="ns-count"></span>
+                <button id="ns-prev-btn" title="Previous (Shift+Enter)">&#8593;</button>
+                <button id="ns-next-btn" title="Next (Enter)">&#8595;</button>
+                <button id="ns-toggle-replace" title="Find & Replace">Replace</button>
+                <div class="ns-replace-group" id="ns-replace-group">
+                    <input type="text" id="ns-replace-input" placeholder="Replace with..." autocomplete="off">
+                    <button id="ns-replace-btn">Replace</button>
+                    <button id="ns-replace-all-btn">All</button>
+                </div>
+                <button class="ns-close" id="ns-close-btn" title="Close (Esc)">&times;</button>
             </div>
 
             <!-- Editor content -->
@@ -3097,6 +3151,7 @@
 
         function resetUI() {
             removeHighlightsFromEditor();
+            nsBar.classList.remove("visible");
             errorDiv.style.display = "none";
             editorActive.classList.remove("visible");
             document.getElementById("home-dashboard").classList.remove("visible");
@@ -4159,6 +4214,7 @@
             { name: "Bold", icon: "B", shortcut: "Ctrl+B", action: () => document.execCommand("bold") },
             { name: "Italic", icon: "I", shortcut: "Ctrl+I", action: () => document.execCommand("italic") },
             { name: "Underline", icon: "U", shortcut: "Ctrl+U", action: () => document.execCommand("underline") },
+            { name: "Find in Note", icon: "\uD83D\uDD0D", shortcut: "Ctrl+F", action: () => openNoteSearch() },
             { name: "Insert Link", icon: "\uD83D\uDD17", shortcut: "Ctrl+K", action: () => showLinkDialog() },
             { name: "Search Notes", icon: "\uD83D\uDD0D", shortcut: "", action: () => { searchInput.focus(); } },
         ];
@@ -4353,6 +4409,175 @@
 
         const _origOpenFile = openFile;
         openFile = async function(fileId) { await _origOpenFile(fileId); navPush({ type: "note", fileId, view: currentView, notebook: currentNotebook }); };
+
+        // --- In-Note Search (Ctrl+F) ---
+        const nsBar = document.getElementById("note-search-bar");
+        const nsFindInput = document.getElementById("ns-find-input");
+        const nsCount = document.getElementById("ns-count");
+        const nsReplaceGroup = document.getElementById("ns-replace-group");
+        const nsReplaceInput = document.getElementById("ns-replace-input");
+        let nsMatches = [];
+        let nsCurrentIdx = -1;
+
+        function openNoteSearch() {
+            if (!currentFileId) return;
+            nsBar.classList.add("visible");
+            nsFindInput.focus();
+            nsFindInput.select();
+        }
+
+        function closeNoteSearch() {
+            nsBar.classList.remove("visible");
+            nsReplaceGroup.classList.remove("visible");
+            clearNsHighlights();
+            nsMatches = [];
+            nsCurrentIdx = -1;
+            nsCount.textContent = "";
+            nsFindInput.value = "";
+            nsReplaceInput.value = "";
+        }
+
+        function getActiveEditor() {
+            return activeTab === "original" ? textOriginal : textEnglish;
+        }
+
+        function clearNsHighlights() {
+            [textEnglish, textOriginal].forEach(editor => {
+                editor.querySelectorAll(".ns-highlight").forEach(mark => {
+                    const parent = mark.parentNode;
+                    parent.replaceChild(document.createTextNode(mark.textContent), mark);
+                    parent.normalize();
+                });
+            });
+        }
+
+        function performNsSearch() {
+            clearNsHighlights();
+            nsMatches = [];
+            nsCurrentIdx = -1;
+            const query = nsFindInput.value;
+            if (!query) { nsCount.textContent = ""; return; }
+
+            const editor = getActiveEditor();
+            const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null);
+            const textNodes = [];
+            while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+            const queryLower = query.toLowerCase();
+            textNodes.forEach(node => {
+                const text = node.textContent;
+                const lower = text.toLowerCase();
+                let idx = 0;
+                const parts = [];
+                let lastEnd = 0;
+                while ((idx = lower.indexOf(queryLower, idx)) !== -1) {
+                    if (idx > lastEnd) parts.push({ text: text.slice(lastEnd, idx), match: false });
+                    parts.push({ text: text.slice(idx, idx + query.length), match: true });
+                    lastEnd = idx + query.length;
+                    idx = lastEnd;
+                }
+                if (parts.length === 0) return;
+                if (lastEnd < text.length) parts.push({ text: text.slice(lastEnd), match: false });
+
+                const frag = document.createDocumentFragment();
+                parts.forEach(p => {
+                    if (p.match) {
+                        const mark = document.createElement("span");
+                        mark.className = "ns-highlight";
+                        mark.textContent = p.text;
+                        frag.appendChild(mark);
+                    } else {
+                        frag.appendChild(document.createTextNode(p.text));
+                    }
+                });
+                node.parentNode.replaceChild(frag, node);
+            });
+
+            nsMatches = Array.from(editor.querySelectorAll(".ns-highlight"));
+            if (nsMatches.length > 0) {
+                nsCurrentIdx = 0;
+                nsMatches[0].classList.add("ns-highlight-active");
+                nsMatches[0].scrollIntoView({ block: "center", behavior: "smooth" });
+            }
+            nsCount.textContent = nsMatches.length > 0 ? `1 / ${nsMatches.length}` : "No results";
+        }
+
+        function nsGoTo(idx) {
+            if (nsMatches.length === 0) return;
+            nsMatches.forEach(m => m.classList.remove("ns-highlight-active"));
+            nsCurrentIdx = ((idx % nsMatches.length) + nsMatches.length) % nsMatches.length;
+            nsMatches[nsCurrentIdx].classList.add("ns-highlight-active");
+            nsMatches[nsCurrentIdx].scrollIntoView({ block: "center", behavior: "smooth" });
+            nsCount.textContent = `${nsCurrentIdx + 1} / ${nsMatches.length}`;
+        }
+
+        function nsReplaceCurrent() {
+            if (nsCurrentIdx < 0 || nsCurrentIdx >= nsMatches.length) return;
+            const mark = nsMatches[nsCurrentIdx];
+            const replacement = nsReplaceInput.value;
+            mark.parentNode.replaceChild(document.createTextNode(replacement), mark);
+            nsMatches.splice(nsCurrentIdx, 1);
+            if (nsMatches.length === 0) {
+                nsCount.textContent = "No results";
+                nsCurrentIdx = -1;
+            } else {
+                nsCurrentIdx = Math.min(nsCurrentIdx, nsMatches.length - 1);
+                nsMatches[nsCurrentIdx].classList.add("ns-highlight-active");
+                nsMatches[nsCurrentIdx].scrollIntoView({ block: "center", behavior: "smooth" });
+                nsCount.textContent = `${nsCurrentIdx + 1} / ${nsMatches.length}`;
+            }
+        }
+
+        function nsReplaceAll() {
+            const replacement = nsReplaceInput.value;
+            nsMatches.forEach(mark => {
+                mark.parentNode.replaceChild(document.createTextNode(replacement), mark);
+            });
+            nsMatches = [];
+            nsCurrentIdx = -1;
+            nsCount.textContent = "All replaced";
+        }
+
+        // Event listeners
+        let nsDebounce = null;
+        nsFindInput.addEventListener("input", () => {
+            clearTimeout(nsDebounce);
+            nsDebounce = setTimeout(performNsSearch, 200);
+        });
+
+        nsFindInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                if (e.shiftKey) nsGoTo(nsCurrentIdx - 1);
+                else nsGoTo(nsCurrentIdx + 1);
+            }
+            if (e.key === "Escape") { e.preventDefault(); closeNoteSearch(); }
+        });
+
+        nsReplaceInput.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") { e.preventDefault(); closeNoteSearch(); }
+            if (e.key === "Enter") { e.preventDefault(); nsReplaceCurrent(); }
+        });
+
+        document.getElementById("ns-prev-btn").addEventListener("click", () => nsGoTo(nsCurrentIdx - 1));
+        document.getElementById("ns-next-btn").addEventListener("click", () => nsGoTo(nsCurrentIdx + 1));
+        document.getElementById("ns-close-btn").addEventListener("click", closeNoteSearch);
+        document.getElementById("ns-replace-btn").addEventListener("click", nsReplaceCurrent);
+        document.getElementById("ns-replace-all-btn").addEventListener("click", nsReplaceAll);
+        document.getElementById("ns-toggle-replace").addEventListener("click", () => {
+            nsReplaceGroup.classList.toggle("visible");
+            if (nsReplaceGroup.classList.contains("visible")) nsReplaceInput.focus();
+        });
+
+        // Ctrl+F handler
+        document.addEventListener("keydown", (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+                if (currentFileId) {
+                    e.preventDefault();
+                    openNoteSearch();
+                }
+            }
+        });
 
         // --- Init ---
         loadNotebooks();
