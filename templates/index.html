@@ -1207,6 +1207,115 @@
             .ns-highlight-active { background: #cc6600; color: #fff; }
         }
 
+        /* Search overlay */
+        #search-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.35); z-index: 2000; align-items: flex-start;
+            justify-content: center; padding-top: 6vh;
+        }
+        #search-overlay.visible { display: flex; }
+        #search-popup {
+            width: 880px; max-width: 92vw; background: var(--bg-surface);
+            border: 1px solid var(--border); border-radius: 12px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.25); overflow: hidden;
+            display: flex; flex-direction: column; max-height: 78vh;
+        }
+        /* Search header */
+        #sp-header {
+            display: flex; align-items: center; gap: 8px; padding: 12px 18px;
+            border-bottom: 1px solid var(--border);
+        }
+        #sp-header .sp-icon { color: var(--text-faint); font-size: 1.1rem; }
+        #sp-header input {
+            flex: 1; border: none; background: transparent; color: var(--text-primary);
+            font-size: 1rem; outline: none;
+        }
+        #sp-header .sp-close {
+            background: none; border: none; cursor: pointer; color: var(--text-muted);
+            font-size: 1.2rem; padding: 2px 6px;
+        }
+        #sp-header .sp-close:hover { color: var(--text-heading); }
+        /* Scope bar */
+        #sp-scope-bar {
+            display: flex; align-items: center; gap: 8px; padding: 8px 18px;
+            border-bottom: 1px solid var(--border); font-size: 0.78rem; color: var(--text-faint);
+        }
+        .sp-scope-chip {
+            display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
+            border-radius: 14px; font-size: 0.75rem; cursor: pointer; border: 1px solid var(--border);
+            background: var(--bg-panel); color: var(--text-secondary); transition: all 0.15s;
+        }
+        .sp-scope-chip.active {
+            background: var(--accent); color: #fff; border-color: var(--accent);
+        }
+        .sp-scope-chip:hover:not(.active) { border-color: var(--accent); }
+        /* Two-column body */
+        #sp-body {
+            display: flex; flex: 1; min-height: 0; overflow: hidden;
+        }
+        #sp-results-col {
+            flex: 1; overflow-y: auto; border-right: 1px solid var(--border);
+            min-width: 0;
+        }
+        #sp-preview-col {
+            width: 320px; overflow-y: auto; padding: 12px 0;
+            background: var(--bg-panel);
+        }
+        #sp-preview-col .sp-preview-title {
+            font-size: 0.78rem; font-weight: 600; color: var(--text-faint);
+            padding: 0 14px 10px; display: flex; align-items: center; gap: 6px;
+        }
+        /* Result items (left column) */
+        .sp-result {
+            padding: 10px 18px; cursor: pointer; display: flex; align-items: center; gap: 10px;
+            transition: background 0.1s;
+        }
+        .sp-result:hover, .sp-result.active { background: var(--accent-bg); }
+        .sp-result .sp-r-icon { color: var(--text-faint); font-size: 0.9rem; flex-shrink: 0; filter: grayscale(1); opacity: 0.6; }
+        .sp-result .sp-r-title {
+            font-size: 0.86rem; font-weight: 500; color: var(--text-heading);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .sp-result .sp-r-notebook {
+            font-size: 0.72rem; color: var(--text-faint); margin-left: 6px;
+            display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
+        }
+        .sp-result .sp-r-notebook-icon { font-size: 0.7rem; filter: grayscale(1); opacity: 0.5; }
+        /* Preview cards (right column) */
+        .sp-preview-card {
+            margin: 0 10px 8px; padding: 12px 14px; border: 1px solid var(--border);
+            border-radius: 8px; background: var(--bg-surface); cursor: pointer;
+            transition: border-color 0.15s;
+        }
+        .sp-preview-card:hover { border-color: var(--accent); }
+        .sp-preview-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+        .sp-preview-card .spc-notebook {
+            font-size: 0.70rem; color: var(--text-faint); margin-bottom: 4px;
+            display: flex; align-items: center; gap: 4px;
+        }
+        .sp-preview-card .spc-notebook-icon { font-size: 0.68rem; filter: grayscale(1); opacity: 0.5; }
+        .sp-preview-card .spc-title {
+            font-size: 0.84rem; font-weight: 600; color: var(--text-heading); margin-bottom: 4px;
+        }
+        .sp-preview-card .spc-text {
+            font-size: 0.74rem; color: var(--text-muted); line-height: 1.4;
+            overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+        /* Footer */
+        #sp-footer {
+            padding: 8px 18px; border-top: 1px solid var(--border);
+            font-size: 0.68rem; color: var(--text-faint); display: flex; gap: 16px;
+        }
+        #sp-footer kbd {
+            background: var(--bg-panel); padding: 1px 5px; border-radius: 3px;
+            border: 1px solid var(--border); font-family: monospace; font-size: 0.65rem;
+        }
+        #sp-empty {
+            padding: 40px 18px; text-align: center; color: var(--text-faint);
+            font-size: 0.85rem;
+        }
+
         /* Navigation arrows */
         #nb-nav-arrows {
             display: flex; justify-content: flex-end; gap: 8px;
@@ -1573,6 +1682,36 @@
             <div id="topicmap-placeholder">Click "Build Map" to analyze all files</div>
             <div id="topicmap-container"></div>
             <div id="topicmap-tooltip"></div>
+        </div>
+    </div>
+
+    <!-- Search Overlay -->
+    <div id="search-overlay">
+        <div id="search-popup">
+            <div id="sp-header">
+                <span class="sp-icon">&#8981;</span>
+                <input type="text" id="search-popup-input" placeholder="Search notes..." autocomplete="off">
+                <button class="sp-close" id="sp-close-btn">&times;</button>
+            </div>
+            <div id="sp-scope-bar">
+                <span>Search in</span>
+                <span class="sp-scope-chip active" data-scope="all">Everywhere</span>
+            </div>
+            <div id="sp-body">
+                <div id="sp-results-col">
+                    <div id="search-popup-results"></div>
+                    <div id="sp-empty" style="display:none">No notes found</div>
+                </div>
+                <div id="sp-preview-col">
+                    <div class="sp-preview-title">&#10024; Results</div>
+                    <div id="sp-preview-cards"></div>
+                </div>
+            </div>
+            <div id="sp-footer">
+                <span><kbd>&#8593;&#8595;</kbd> Select</span>
+                <span><kbd>&#9166;</kbd> Open</span>
+                <span><kbd>Esc</kbd> Close</span>
+            </div>
         </div>
     </div>
 
@@ -2246,8 +2385,8 @@
         }
         document.getElementById("nb-topicmap").addEventListener("click", () => showTopicMap());
 
-        // Sidebar search bar opens command palette
-        document.getElementById("nb-search-bar").addEventListener("click", () => openPalette());
+        // Sidebar search bar opens search overlay
+        document.getElementById("nb-search-bar").addEventListener("click", () => openSearchOverlay());
 
         // Green new-note button in sidebar
         document.getElementById("nb-new-note-btn").addEventListener("click", () => {
@@ -2513,50 +2652,70 @@
                 const titleHtml = q ? highlightText(f.original_name, q) : escapeHtml(f.original_name);
                 const previewHtml = q ? highlightText(f.preview || "", q) : escapeHtml(f.preview || "");
 
-                li.innerHTML = `
-                    <div style="display:flex;align-items:center;gap:4px">
-                        <input type="checkbox" class="bulk-checkbox" data-bulk-id="${f.id}">
-                        ${!isTrash ? '<button class="' + starClass + '" data-star-id="' + f.id + '" title="Star">' + starIcon + '</button>' : ''}
-                        <div class="note-card-title" style="flex:1">${titleHtml}</div>
-                    </div>
-                    <div class="note-card-preview">${previewHtml}</div>
-                    <div class="note-card-meta">
-                        <span>${date} &middot; <span class="note-type">${typeLabel}</span>${f.notebook ? ' &middot; ' + escapeHtml(f.notebook) : ''}</span>
-                        <span>
-                            ${isTrash ? '<button class="note-restore" data-restore-id="' + f.id + '">Restore</button>' : ''}
-                            <button class="note-delete" data-id="${f.id}" title="${isTrash ? 'Delete permanently' : 'Move to trash'}">&times;</button>
-                        </span>
-                    </div>
-                    ${tagsHtml}
-                `;
+                if (q) {
+                    // Search-focused result card
+                    const titleMatch = f.original_name.toLowerCase().includes(q.toLowerCase());
+                    const contentMatch = (f.preview || "").toLowerCase().includes(q.toLowerCase());
+                    let matchLabel = "";
+                    if (titleMatch && contentMatch) matchLabel = "title + content";
+                    else if (titleMatch) matchLabel = "title";
+                    else if (contentMatch) matchLabel = "content";
 
-                // Bulk checkbox
+                    li.innerHTML = `
+                        <div class="note-card-title" style="margin-bottom:3px">${titleHtml}</div>
+                        ${previewHtml ? '<div class="note-card-preview">' + previewHtml + '</div>' : ''}
+                        <div class="note-card-meta">
+                            <span>${f.notebook ? escapeHtml(f.notebook) + ' &middot; ' : ''}${date}${matchLabel ? ' &middot; <span class="note-type">' + matchLabel + '</span>' : ''}</span>
+                        </div>
+                    `;
+                } else {
+                    li.innerHTML = `
+                        <div style="display:flex;align-items:center;gap:4px">
+                            <input type="checkbox" class="bulk-checkbox" data-bulk-id="${f.id}">
+                            ${!isTrash ? '<button class="' + starClass + '" data-star-id="' + f.id + '" title="Star">' + starIcon + '</button>' : ''}
+                            <div class="note-card-title" style="flex:1">${titleHtml}</div>
+                        </div>
+                        <div class="note-card-preview">${previewHtml}</div>
+                        <div class="note-card-meta">
+                            <span>${date} &middot; <span class="note-type">${typeLabel}</span>${f.notebook ? ' &middot; ' + escapeHtml(f.notebook) : ''}</span>
+                            <span>
+                                ${isTrash ? '<button class="note-restore" data-restore-id="' + f.id + '">Restore</button>' : ''}
+                                <button class="note-delete" data-id="${f.id}" title="${isTrash ? 'Delete permanently' : 'Move to trash'}">&times;</button>
+                            </span>
+                        </div>
+                        ${tagsHtml}
+                    `;
+                }
+
+                // Bulk checkbox (not present in search mode)
                 const bulkCb = li.querySelector(".bulk-checkbox");
-                bulkCb.addEventListener("change", (e) => {
-                    e.stopPropagation();
-                    if (bulkCb.checked) selectedIds.add(f.id);
-                    else selectedIds.delete(f.id);
-                    updateBulkCount();
-                });
-                bulkCb.addEventListener("click", (e) => e.stopPropagation());
+                if (bulkCb) {
+                    bulkCb.addEventListener("change", (e) => {
+                        e.stopPropagation();
+                        if (bulkCb.checked) selectedIds.add(f.id);
+                        else selectedIds.delete(f.id);
+                        updateBulkCount();
+                    });
+                    bulkCb.addEventListener("click", (e) => e.stopPropagation());
 
-                // Long press to enter bulk mode
-                li.addEventListener("mousedown", () => {
-                    longPressTimer = setTimeout(() => {
-                        if (!bulkMode) {
-                            toggleBulkMode(true);
-                            selectedIds.add(f.id);
-                            bulkCb.checked = true;
-                            updateBulkCount();
-                        }
-                    }, 600);
-                });
-                li.addEventListener("mouseup", () => clearTimeout(longPressTimer));
-                li.addEventListener("mouseleave", () => clearTimeout(longPressTimer));
+                    // Long press to enter bulk mode
+                    li.addEventListener("mousedown", () => {
+                        longPressTimer = setTimeout(() => {
+                            if (!bulkMode) {
+                                toggleBulkMode(true);
+                                selectedIds.add(f.id);
+                                bulkCb.checked = true;
+                                updateBulkCount();
+                            }
+                        }, 600);
+                    });
+                    li.addEventListener("mouseup", () => clearTimeout(longPressTimer));
+                    li.addEventListener("mouseleave", () => clearTimeout(longPressTimer));
+                }
 
                 li.addEventListener("click", (e) => {
                     if (e.target.closest(".note-delete") || e.target.closest(".note-star") || e.target.closest(".note-restore") || e.target.closest(".bulk-checkbox")) return;
-                    if (bulkMode) {
+                    if (bulkMode && bulkCb) {
                         bulkCb.checked = !bulkCb.checked;
                         if (bulkCb.checked) selectedIds.add(f.id);
                         else selectedIds.delete(f.id);
@@ -2603,10 +2762,35 @@
             }
         }
 
-        // Search
+        // Search — toggle focused search mode
+        function setSearchMode(active) {
+            const headerRow = document.getElementById("notes-header-row");
+            const sortBar = document.getElementById("sort-bar");
+            const sfToggle = document.getElementById("search-filter-toggle");
+            const saveBtn = document.getElementById("save-search-btn");
+            if (active) {
+                headerRow.style.display = "none";
+                sortBar.style.display = "none";
+                sfToggle.style.display = "none";
+                saveBtn.style.display = "none";
+            } else {
+                headerRow.style.display = "";
+                sortBar.style.display = "";
+                sfToggle.style.display = "";
+            }
+        }
         searchInput.addEventListener("input", () => {
             clearTimeout(searchTimeout);
+            const hasQuery = searchInput.value.trim().length > 0;
+            setSearchMode(hasQuery);
             searchTimeout = setTimeout(() => loadNoteList(), 300);
+        });
+        searchInput.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") {
+                searchInput.value = "";
+                setSearchMode(false);
+                loadNoteList();
+            }
         });
 
         // Advanced search filter toggle
@@ -4302,13 +4486,13 @@
                 openPalette();
                 return;
             }
-            // Ctrl+K: Open palette if not editing a note (matches Evernote search shortcut)
+            // Ctrl+K: Open search overlay if not editing a note
             if (ctrl && e.key.toLowerCase() === "k" && !e.shiftKey) {
                 const editorFocused = document.activeElement &&
                     (document.activeElement === textOriginal || document.activeElement === textEnglish);
                 if (!editorFocused) {
                     e.preventDefault();
-                    openPalette();
+                    openSearchOverlay();
                     return;
                 }
             }
@@ -4576,6 +4760,143 @@
                     e.preventDefault();
                     openNoteSearch();
                 }
+            }
+        });
+
+        // --- Search Overlay ---
+        const searchOverlay = document.getElementById("search-overlay");
+        const searchPopupInput = document.getElementById("search-popup-input");
+        const searchPopupResults = document.getElementById("search-popup-results");
+        const spPreviewCards = document.getElementById("sp-preview-cards");
+        const spEmpty = document.getElementById("sp-empty");
+        let spIdx = -1;
+        let spNotes = [];
+        let spScope = "all";
+
+        function openSearchOverlay() {
+            searchOverlay.classList.add("visible");
+            searchPopupInput.value = "";
+            searchPopupResults.innerHTML = "";
+            spPreviewCards.innerHTML = "";
+            spEmpty.style.display = "none";
+            spIdx = -1;
+            spNotes = [];
+            buildScopeChips();
+            searchPopupInput.focus();
+        }
+
+        function closeSearchOverlay() {
+            searchOverlay.classList.remove("visible");
+        }
+
+        function buildScopeChips() {
+            const bar = document.getElementById("sp-scope-bar");
+            bar.innerHTML = '<span>Search in</span>';
+            const allChip = document.createElement("span");
+            allChip.className = "sp-scope-chip" + (spScope === "all" ? " active" : "");
+            allChip.textContent = "Everywhere";
+            allChip.dataset.scope = "all";
+            allChip.addEventListener("click", () => { spScope = "all"; buildScopeChips(); performSearchPopup(); });
+            bar.appendChild(allChip);
+            // Add notebook chips
+            allNotebooks.forEach(nb => {
+                const chip = document.createElement("span");
+                chip.className = "sp-scope-chip" + (spScope === nb.name ? " active" : "");
+                chip.innerHTML = '&#128211; ' + escapeHtml(nb.name);
+                chip.dataset.scope = nb.name;
+                chip.addEventListener("click", () => { spScope = nb.name; buildScopeChips(); performSearchPopup(); });
+                bar.appendChild(chip);
+            });
+        }
+
+        searchOverlay.addEventListener("click", (e) => { if (e.target === searchOverlay) closeSearchOverlay(); });
+        document.getElementById("sp-close-btn").addEventListener("click", closeSearchOverlay);
+
+        let spDebounce = null;
+        searchPopupInput.addEventListener("input", () => {
+            clearTimeout(spDebounce);
+            spDebounce = setTimeout(performSearchPopup, 250);
+        });
+
+        async function performSearchPopup() {
+            const q = searchPopupInput.value.trim();
+            if (!q) {
+                searchPopupResults.innerHTML = "";
+                spPreviewCards.innerHTML = "";
+                spEmpty.style.display = "none";
+                spIdx = -1;
+                spNotes = [];
+                return;
+            }
+            try {
+                let url = `/library?q=${encodeURIComponent(q)}`;
+                if (spScope !== "all") url += `&notebook=${encodeURIComponent(spScope)}`;
+                const res = await fetch(url);
+                spNotes = await res.json();
+                searchPopupResults.innerHTML = "";
+                spPreviewCards.innerHTML = "";
+                spIdx = -1;
+                if (spNotes.length === 0) {
+                    spEmpty.style.display = "block";
+                    return;
+                }
+                spEmpty.style.display = "none";
+
+                // Left column: result list
+                spNotes.forEach((n, i) => {
+                    const div = document.createElement("div");
+                    div.className = "sp-result" + (i === 0 ? " active" : "");
+                    if (i === 0) spIdx = 0;
+                    const titleHtml = highlightText(n.original_name, q);
+                    div.innerHTML = `
+                        <span class="sp-r-icon">&#128195;</span>
+                        <span class="sp-r-title">${titleHtml}</span>
+                        ${n.notebook ? '<span class="sp-r-notebook"><span class="sp-r-notebook-icon">&#128211;</span> ' + escapeHtml(n.notebook) + '</span>' : ''}
+                    `;
+                    div.addEventListener("click", () => { closeSearchOverlay(); openFile(n.id); });
+                    div.addEventListener("mouseenter", () => { spSetActive(i); });
+                    searchPopupResults.appendChild(div);
+                });
+
+                // Right column: preview cards
+                spNotes.forEach((n, i) => {
+                    const card = document.createElement("div");
+                    card.className = "sp-preview-card" + (i === 0 ? " active" : "");
+                    const previewHtml = n.preview ? highlightText(n.preview, q) : "";
+                    card.innerHTML = `
+                        <div class="spc-notebook"><span class="spc-notebook-icon">&#128211;</span> ${escapeHtml(n.notebook || "")}</div>
+                        <div class="spc-title">${highlightText(n.original_name, q)}</div>
+                        ${previewHtml ? '<div class="spc-text">' + previewHtml + '</div>' : ''}
+                    `;
+                    card.addEventListener("click", () => { closeSearchOverlay(); openFile(n.id); });
+                    spPreviewCards.appendChild(card);
+                });
+            } catch (e) {
+                spEmpty.textContent = "Search failed";
+                spEmpty.style.display = "block";
+            }
+        }
+
+        function spSetActive(idx) {
+            spIdx = idx;
+            searchPopupResults.querySelectorAll(".sp-result").forEach((r, i) => r.classList.toggle("active", i === idx));
+            spPreviewCards.querySelectorAll(".sp-preview-card").forEach((c, i) => c.classList.toggle("active", i === idx));
+            const activeCard = spPreviewCards.querySelector(".sp-preview-card.active");
+            if (activeCard) activeCard.scrollIntoView({ block: "nearest" });
+        }
+
+        searchPopupInput.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                spSetActive(Math.min(spIdx + 1, spNotes.length - 1));
+            } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                spSetActive(Math.max(spIdx - 1, 0));
+            } else if (e.key === "Enter") {
+                e.preventDefault();
+                if (spIdx >= 0 && spNotes[spIdx]) { closeSearchOverlay(); openFile(spNotes[spIdx].id); }
+            } else if (e.key === "Escape") {
+                closeSearchOverlay();
             }
         });
 
