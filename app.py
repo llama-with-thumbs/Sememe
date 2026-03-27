@@ -1175,6 +1175,24 @@ def serve_attachment(att_id):
     return jsonify({"error": "File missing"}), 404
 
 
+@app.route("/attachments/<att_id>", methods=["DELETE"])
+def delete_attachment(att_id):
+    conn = get_db()
+    row = conn.execute("SELECT id FROM attachments WHERE id = ?", (att_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "Not found"}), 404
+    conn.execute("DELETE FROM attachments WHERE id = ?", (att_id,))
+    conn.commit()
+    conn.close()
+    # Remove file from disk
+    for f in os.listdir(ATTACHMENTS_FOLDER):
+        if f.startswith(att_id):
+            os.remove(os.path.join(ATTACHMENTS_FOLDER, f))
+            break
+    return jsonify({"ok": True})
+
+
 @app.route("/library/<file_id>/attachments")
 def list_attachments(file_id):
     conn = get_db()
@@ -1190,6 +1208,76 @@ def list_attachments(file_id):
         d["is_image"] = any(r["filename"].lower().endswith("." + e) for e in IMAGE_EXTENSIONS)
         result.append(d)
     return jsonify(result)
+
+
+@app.route("/files")
+def list_all_files():
+    """List all attachments across all notes."""
+    conn = get_db()
+    q = request.args.get("q", "").strip()
+    ftype = request.args.get("type", "")  # "media", "docs", or ""
+    query = (
+        "SELECT a.id, a.filename, a.mime_type, a.size, a.created_at, a.file_id, "
+        "f.original_name as note_name, f.notebook "
+        "FROM attachments a LEFT JOIN files f ON a.file_id = f.id "
+        "WHERE f.trashed_at IS NULL"
+    )
+    params = []
+    if q:
+        query += " AND a.filename LIKE ?"
+        params.append(f"%{q}%")
+    if ftype == "media":
+        query += " AND (a.mime_type LIKE 'image/%' OR a.mime_type LIKE 'audio/%' OR a.mime_type LIKE 'video/%')"
+    elif ftype == "docs":
+        query += " AND a.mime_type NOT LIKE 'image/%' AND a.mime_type NOT LIKE 'audio/%' AND a.mime_type NOT LIKE 'video/%'"
+    query += " ORDER BY a.created_at DESC"
+    rows = conn.execute(query, params).fetchall()
+    total_size = conn.execute(
+        "SELECT COALESCE(SUM(a.size), 0) FROM attachments a LEFT JOIN files f ON a.file_id = f.id WHERE f.trashed_at IS NULL"
+    ).fetchone()[0]
+    conn.close()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["url"] = f"/attachments/{r['id']}"
+        d["is_image"] = any(r["filename"].lower().endswith("." + e) for e in IMAGE_EXTENSIONS)
+        result.append(d)
+    return jsonify({"files": result, "total_size": total_size})
+
+
+@app.route("/files/upload", methods=["POST"])
+def upload_standalone_file():
+    """Upload a file not attached to any specific note — creates a note for it."""
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    file = request.files["file"]
+    if not file.filename:
+        return jsonify({"error": "No file selected"}), 400
+
+    # Create a note to hold this file
+    file_id = str(uuid.uuid4())
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO files (id, original_name, mp3_path, duration, transcription, created_at, notebook) "
+        "VALUES (?, ?, NULL, 0, '', ?, ?)",
+        (file_id, file.filename, datetime.now().isoformat(), "My Notebook")
+    )
+
+    # Save attachment
+    att_id = str(uuid.uuid4())
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    save_name = att_id + ("." + ext if ext else "")
+    save_path = os.path.join(ATTACHMENTS_FOLDER, save_name)
+    file.save(save_path)
+    mime = mimetypes.guess_type(file.filename)[0] or "application/octet-stream"
+    size = os.path.getsize(save_path)
+    conn.execute(
+        "INSERT INTO attachments (id, file_id, filename, mime_type, size, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (att_id, file_id, file.filename, mime, size, datetime.now().isoformat())
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True, "file_id": file_id, "att_id": att_id})
 
 
 @app.route("/library/search-titles")
